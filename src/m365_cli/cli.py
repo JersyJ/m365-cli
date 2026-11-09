@@ -54,7 +54,8 @@ def _dev_app() -> typer.Typer:
         from m365_cli.backends.fake import write_state
         from m365_cli.backends.fake.snapshot import SnapshotOptions, take_snapshot
 
-        ctx = AppContext(Settings.load(**{**_RUN.overrides, "backend": "outlook", "fake_state": None}))
+        snapshot_overrides: dict[str, Any] = {**_RUN.overrides, "backend": "outlook", "fake_state": None}
+        ctx = AppContext(Settings.load(**snapshot_overrides))
         try:
             options = SnapshotOptions(
                 mail_days=mail_days, max_inbox=max_inbox, max_people=max_people, add_injection_mail=injection

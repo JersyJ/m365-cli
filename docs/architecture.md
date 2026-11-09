@@ -45,4 +45,4 @@ To remove a feature, add its name to `disabled_features`, or delete its director
 
 * Do not write `#` comments. Write docstrings.
 * Only an `__init__.py` file has a module docstring.
-* ruff (`D` rules, Google convention) and pyright check the code.
+* ruff (`D` rules, Google convention) and pyrefly check the code.

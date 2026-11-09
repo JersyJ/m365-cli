@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import threading
-from collections.abc import Iterator
+from collections.abc import Generator
 from contextlib import contextmanager
 from pathlib import Path
 
@@ -32,7 +32,7 @@ class FakeStore:
         return self._state
 
     @contextmanager
-    def edit(self) -> Iterator[FakeState]:
+    def edit(self) -> Generator[FakeState]:
         """Context manager for changes; saves on success, discards everything if the block raises."""
         with self._lock:
             draft = self._state.model_copy(deep=True)

@@ -223,7 +223,7 @@ class TeamsSession:
         try:
             with urllib.request.urlopen(self._endpoint("/json/list"), timeout=3) as response:
                 tabs = json.load(response)
-        except (OSError, urllib.error.URLError, ValueError):
+        except (OSError, ValueError):
             return None
         return [t for t in tabs if t.get("type") == "page" and t.get("webSocketDebuggerUrl")]
 
@@ -245,7 +245,7 @@ class TeamsSession:
         try:
             with urllib.request.urlopen(request, timeout=5) as response:
                 return json.load(response)
-        except (OSError, urllib.error.URLError, ValueError) as exc:
+        except (OSError, ValueError) as exc:
             raise BackendUnavailableError(f"Cannot open a Teams tab: {exc}") from exc
 
     def _start_browser(self) -> None:
