@@ -111,12 +111,16 @@ class TeamsService:
     def _title(self, conv: dict[str, Any], kind: ChatKind) -> str:
         """Chat title; 1:1 and untitled group chats are named after the other people (cached per chat)."""
         props = conv.get("threadProperties") or {}
+        conv_id = str(conv["id"])
+        if kind == "channel":
+            team = str(props.get("spaceThreadTopic") or "")
+            topic = str(props.get("topicThreadTopic") or props.get("topic") or "")
+            if team and topic and team != topic:
+                return f"{team} / {topic}"
+            return team or topic or "General"
         title = str(props.get("topicThreadTopic") or props.get("topic") or "")
         if title:
             return title
-        if kind == "channel":
-            return "General"
-        conv_id = str(conv["id"])
         cached = self._profiles.get(f"chat:{conv_id}")
         if cached and cached.name:
             return cached.name
