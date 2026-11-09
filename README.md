@@ -81,6 +81,32 @@ Run this command once (in WSL or in Windows), then start a new Claude Code sessi
 claude mcp add m365 -s user -- /mnt/c/Users/<you>/src/m365-cli/.venv/Scripts/m365.exe mcp
 ```
 
+### Connect GitHub Copilot
+
+Copilot CLI (in WSL or in Windows):
+
+```bash
+copilot mcp add m365 -- /mnt/c/Users/<you>/src/m365-cli/.venv/Scripts/m365.exe mcp
+```
+
+VS Code (Copilot agent mode): add this server to the user file `%APPDATA%\Code\User\mcp.json`, then select "Agent" in Copilot Chat:
+
+```json
+{
+  "servers": {
+    "m365": {
+      "type": "stdio",
+      "command": "C:\\Users\\<you>\\src\\m365-cli\\.venv\\Scripts\\m365.exe",
+      "args": ["mcp"]
+    }
+  }
+}
+```
+
+Safety with Copilot: the flag `anthropic/requiresUserInteraction` works only in Claude Code.
+Copilot asks before each tool call by default. Do not auto-approve the send tools.
+In Copilot CLI, block them for unattended runs: `--deny-tool 'm365(mail_send)' --deny-tool 'm365(cal_send)' --deny-tool 'm365(cal_respond)' --deny-tool 'm365(cal_cancel)'`.
+
 ## Settings
 
 The file `%APPDATA%\m365-cli\config.toml` is optional. All keys are optional.
