@@ -1,0 +1,52 @@
+[project]
+name = "m365-cli"
+version = "0.1.0"
+description = "Token-efficient Outlook (and later Teams) automation for AI agents: modular CLI + MCP server, no Graph app registration."
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "mcp>=2.3.0",
+    "pydantic>=2.14.3",
+    "pywin32>=312",
+    "typer>=0.28.0",
+]
+
+[project.scripts]
+m365 = "m365_cli.cli:main"
+
+[build-system]
+requires = ["uv_build>=0.13.7,<0.14.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "pyright>=1.1.414",
+    "pytest>=9.2.0",
+    "ruff>=0.17.4",
+]
+
+[tool.ruff]
+line-length = 110
+target-version = "py313"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "I", "B", "UP", "SIM", "RUF", "PTH", "RET", "C4", "PIE", "PL", "D"]
+ignore = ["PLR0913", "PLR0917", "PLR2004", "PLC0415", "B008", "D100", "D105", "D203", "D213"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["D"]
+
+[tool.pyright]
+include = ["src", "tests"]
+pythonVersion = "3.13"
+typeCheckingMode = "standard"
+reportMissingTypeStubs = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = ["outlook: needs a running, signed-in classic Outlook (deselected by default)"]
+addopts = "-m 'not outlook'"
