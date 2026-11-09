@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import itertools
+import tempfile
 from collections import Counter
 from dataclasses import dataclass
 from datetime import datetime, timedelta
+from pathlib import Path
 
 from m365_cli.backends.fake.fixtures import INJECTION_MAIL
 from m365_cli.backends.fake.state import (
@@ -18,11 +20,16 @@ from m365_cli.backends.fake.state import (
 from m365_cli.backends.outlook import Com, Outlook, OutlookSession, iterate
 from m365_cli.backends.outlook.constants import OlFlagStatus, OlFolder, OlMeetingStatus, OlResponseStatus
 from m365_cli.backends.outlook.freebusy import recipient_blocks
-from m365_cli.backends.outlook.items import attachments_of, get, kind_of, split_names
+from m365_cli.backends.outlook.items import attachments_of, get, is_protected, kind_of, split_names
+from m365_cli.backends.outlook.profile import signature_for
+from m365_cli.core.doctext import TEXT_SUFFIXES, extract_text
+from m365_cli.core.errors import InvalidInputError, NotFoundError
 from m365_cli.core.text import clean_body, truncate
 from m365_cli.core.timeutil import from_com, now, to_dasl_utc
 
 _BODY_CHARS = 4000
+_ATTACHMENT_TEXT_MAX_BYTES = 3_000_000
+_DOCUMENT_SUFFIXES = TEXT_SUFFIXES | {".pdf", ".docx", ".pptx", ".xlsx"}
 _FREEBUSY_MINUTES = 30
 _RESPONSES = {
     OlResponseStatus.ORGANIZED: "organizer",
@@ -41,6 +48,7 @@ class SnapshotOptions:
     max_inbox: int = 100
     max_sent: int = 30
     max_per_subfolder: int = 10
+    max_per_other_mailbox: int = 15
     event_days_back: int = 7
     event_days_ahead: int = 14
     max_people: int = 40
@@ -62,13 +70,23 @@ def take_snapshot(session: OutlookSession, options: SnapshotOptions | None = Non
     folders = session.run(_folders)
     events, event_keys = session.run(lambda ol: _events(ol, clock, opts))
     mails = session.run(lambda ol: _mails(ol, clock, opts, event_keys, events))
+    others, other_mails = session.run(lambda ol: _other_mailboxes(ol, opts, event_keys, events, len(mails)))
+    mails += other_mails
     people = _people(session, clock, opts, mails, events, me)
     if opts.add_injection_mail:
         mails.append(
             INJECTION_MAIL.model_copy(update={"received": clock - timedelta(hours=26), "to": [me.name]})
         )
     return FakeState(
-        source="snapshot", clock=clock, me=me, folders=folders, mails=mails, events=events, people=people
+        source="snapshot",
+        clock=clock,
+        me=me,
+        folders=folders,
+        mails=mails,
+        events=events,
+        people=people,
+        mailboxes=others,
+        signatures=session.run(_signatures),
     )
 
 
@@ -190,10 +208,69 @@ def _mail(
         unread=bool(get(item, "UnRead", False)),
         flag=flag,
         categories=[c.strip() for c in str(get(item, "Categories", "") or "").split(",") if c.strip()],
-        attachments=[FakeAttachment(name=a.name, size=a.size, inline=a.inline) for a in attachments_of(item)],
+        attachments=_attachments(item),
         kind=kind,
         event_id=event_id,
+        protected=is_protected(item),
     )
+
+
+def _attachments(item: Com) -> list[FakeAttachment]:
+    """Attachments of a mail; for supported documents up to 3 MB also their extracted text."""
+    result = []
+    for a in attachments_of(item):
+        text = ""
+        if (
+            not a.inline
+            and a.size <= _ATTACHMENT_TEXT_MAX_BYTES
+            and Path(a.name).suffix.lower() in _DOCUMENT_SUFFIXES
+        ):
+            with tempfile.TemporaryDirectory(prefix="m365-snap-") as tmp:
+                path = Path(tmp) / a.name
+                item.Attachments.Item(a.index).SaveAsFile(str(path))
+                try:
+                    text = truncate(clean_body(extract_text(path)), _BODY_CHARS)[0]
+                except InvalidInputError:
+                    text = ""
+        result.append(FakeAttachment(name=a.name, size=a.size, inline=a.inline, text=text))
+    return result
+
+
+def _other_mailboxes(
+    ol: Outlook,
+    opts: SnapshotOptions,
+    event_keys: dict[tuple[str, str], str],
+    events: list[FakeEvent],
+    start: int,
+) -> tuple[list[str], list[FakeMail]]:
+    """Newest Inbox mails of every other mailbox in the profile (shared mailboxes, other accounts)."""
+    names: list[str] = []
+    mails: list[FakeMail] = []
+    counter = itertools.count(start + 1)
+    for name, kind in ol.mailboxes():
+        if kind == "primary":
+            continue
+        try:
+            items = ol.default_folder(OlFolder.INBOX, name).Items
+        except NotFoundError:
+            continue
+        items.Sort("[ReceivedTime]", True)
+        names.append(name)
+        for item in itertools.islice(iterate(items), opts.max_per_other_mailbox):
+            mail = _mail(item, f"m{next(counter)}", "inbox", event_keys, events)
+            mails.append(mail.model_copy(update={"mailbox": name}))
+    return names, mails
+
+
+def _signatures(ol: Outlook) -> dict[str, str]:
+    """Plain text of Outlook's default signatures for new mails and replies."""
+    account = ol.smtp_of(ol.ns.CurrentUser.AddressEntry)
+    result = {}
+    for kind in ("new", "reply"):
+        signature = signature_for(kind, account, "auto")
+        if signature is not None:
+            result[kind] = signature.text
+    return result
 
 
 def _people(

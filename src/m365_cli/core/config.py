@@ -35,12 +35,16 @@ class Settings(BaseModel):
     Sources, later ones win: the defaults below, `%APPDATA%/m365-cli/config.toml`, then the
     environment variables M365_AGENT_BACKEND, M365_AGENT_FAKE_STATE and M365_AGENT_DATA_DIR.
 
+    `signature_new` / `signature_reply` are "auto" (Outlook's default signature), "none", or a name.
+
     Example config.toml:
 
         disabled_features = ["people"]
         list_limit = 20
         body_max_chars = 4000
         signoff = "Sent with my assistant"
+        signature_new = "auto"
+        signature_reply = "Short"
         work_hours = [8, 17]
         max_sends_per_minute = 5
     """
@@ -53,6 +57,8 @@ class Settings(BaseModel):
     list_limit: int = Field(default=15, ge=1, le=200)
     body_max_chars: int = Field(default=6000, ge=200)
     signoff: str = ""
+    signature_new: str = "auto"
+    signature_reply: str = "auto"
     work_hours: tuple[int, int] = (8, 17)
     max_sends_per_minute: int = Field(default=5, ge=1, le=60)
     data_dir: Path = Field(default_factory=data_dir)

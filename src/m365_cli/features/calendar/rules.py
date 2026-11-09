@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 
 from m365_cli.core.errors import InvalidInputError
 from m365_cli.core.freebusy import Block, free_windows
-from m365_cli.features.calendar.models import Slot
+from m365_cli.features.calendar.models import Repeat, Slot
 
 SLOT_STEP = timedelta(minutes=30)
 MAX_DAYS = 14
@@ -70,3 +70,33 @@ def free_slots(
             if len(slots) >= limit:
                 return slots
     return slots
+
+
+WEEKDAY_BITS = {"sun": 1, "mon": 2, "tue": 4, "wed": 8, "thu": 16, "fri": 32, "sat": 64}
+"""Outlook's `OlDaysOfWeek` bit for each weekday."""
+
+
+def check_repeat(repeat: Repeat, start: datetime) -> list[str]:
+    """Validate a repeat rule and return its weekdays (empty unless every='week').
+
+    Raises:
+        InvalidInputError: Both `until` and `count`, an `until` before the start, or weekdays for days/months.
+    """
+    if repeat.until is not None and repeat.count is not None:
+        raise InvalidInputError("Give either until or count, not both.")
+    if repeat.until is not None and repeat.until < start.date():
+        raise InvalidInputError("until is before the start.")
+    if repeat.every != "week":
+        if repeat.days:
+            raise InvalidInputError("days only works with every='week'.")
+        return []
+    return list(repeat.days or [list(WEEKDAY_BITS)[(start.weekday() + 1) % 7]])
+
+
+def describe_repeat(repeat: Repeat, start: datetime) -> str:
+    """Short text such as 'every 2 weeks on Mon, Wed until 2026-12-31'."""
+    unit = repeat.every if repeat.interval == 1 else f"{repeat.interval} {repeat.every}s"
+    days = check_repeat(repeat, start)
+    on = f" on {', '.join(d.capitalize() for d in days)}" if days else ""
+    end = f" until {repeat.until}" if repeat.until else (f", {repeat.count} times" if repeat.count else "")
+    return f"every {unit}{on}{end}"

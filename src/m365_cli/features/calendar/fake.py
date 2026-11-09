@@ -12,8 +12,15 @@ from m365_cli.core.refs import BackendId
 from m365_cli.core.text import clean_body, truncate, with_signoff
 from m365_cli.core.timeutil import now
 from m365_cli.features.calendar.api import KIND, MEETING_MAIL_KIND
-from m365_cli.features.calendar.models import Event, EventSummary, FreeTimeResult, MeetingDraft, Response
-from m365_cli.features.calendar.rules import check_period, day_start, free_slots
+from m365_cli.features.calendar.models import (
+    Event,
+    EventSummary,
+    FreeTimeResult,
+    MeetingDraft,
+    Repeat,
+    Response,
+)
+from m365_cli.features.calendar.rules import check_period, check_repeat, day_start, free_slots
 
 _RESPONSE_STATES = {"accept": "accepted", "tentative": "tentative", "decline": "declined"}
 
@@ -40,10 +47,24 @@ class FakeCalendarService:
             if mail is None or mail.event_id is None:
                 raise InvalidInputError("That mail is not a meeting request.")
             event_id = mail.event_id
-        for event in state.events:
+        shared = (e for p in state.people for e in p.calendar or [])
+        for event in [*state.events, *shared]:
             if event.id == event_id:
                 return event
         raise NotFoundError("Calendar item no longer exists; list the calendar again.")
+
+    def _calendar(self, owner: str | None) -> list[FakeEvent]:
+        """The user's events, or the shared calendar of `owner`."""
+        state = self._store.state
+        if not owner:
+            return state.events
+        person = resolve_person(state, owner)
+        if person.calendar is None:
+            raise InvalidInputError(
+                f"{person.name}'s calendar is not shared with you; "
+                "use cal_find_free_time or people_lookup for their free/busy instead."
+            )
+        return person.calendar
 
     def _summary(self, event: FakeEvent) -> EventSummary:
         return EventSummary(
@@ -69,13 +90,14 @@ class FakeCalendarService:
         offset: int = 0,
         limit: int = 50,
         include_canceled: bool = False,
+        owner: str | None = None,
     ) -> Page[EventSummary]:
-        """One page of events overlapping the period, earliest first."""
+        """One page of events overlapping the period, earliest first; `owner` = a shared calendar."""
         check_period(start, end)
         found = sorted(
             (
                 e
-                for e in self._store.state.events
+                for e in self._calendar(owner)
                 if e.start < end and e.end > start and (include_canceled or not e.canceled)
             ),
             key=lambda e: e.start,
@@ -106,9 +128,12 @@ class FakeCalendarService:
         rooms: list[str] | None = None,
         location: str = "",
         body: str = "",
+        repeat: Repeat | None = None,
     ) -> MeetingDraft:
         """Save a meeting (NOT sent) or, without attendees, a personal appointment."""
         check_period(start, end)
+        if repeat:
+            check_repeat(repeat, start)
         with self._store.edit() as state:
             groups = [
                 [resolve_person(state, n).name for n in group or []] for group in (required, optional, rooms)
@@ -130,6 +155,8 @@ class FakeCalendarService:
                 my_response="organizer" if is_meeting else "",
                 is_meeting=is_meeting,
                 sent=not is_meeting,
+                recurring=repeat is not None,
+                repeat=repeat.model_dump(mode="json") if repeat else None,
             )
             state.events.append(event)
         return MeetingDraft(
@@ -143,7 +170,72 @@ class FakeCalendarService:
             rooms=groups[2],
             text=text,
             is_meeting=is_meeting,
+            repeat=repeat,
         )
+
+    def update(
+        self,
+        ref: str,
+        *,
+        start: datetime | None = None,
+        end: datetime | None = None,
+        subject: str | None = None,
+        location: str | None = None,
+        add_required: list[str] | None = None,
+        add_optional: list[str] | None = None,
+        remove: list[str] | None = None,
+    ) -> MeetingDraft:
+        """Change a meeting you organize (or a personal appointment); attendees are NOT notified."""
+        changes = (start, end, subject, location, add_required, add_optional, remove)
+        if all(c is None for c in changes):
+            raise InvalidInputError("Nothing to update.")
+        with self._store.edit() as state:
+            event = self._event(state, ref)
+            if event.is_meeting and not event.organizer_is_me:
+                raise InvalidInputError("You are not the organizer; ask the organizer or use respond.")
+            new_start = start or event.start
+            new_end = end or (new_start + (event.end - event.start) if start else event.end)
+            check_period(new_start, new_end)
+            event.start, event.end = new_start, new_end
+            event.subject = subject if subject is not None else event.subject
+            event.location = location if location is not None else event.location
+            for query in remove or []:
+                key = query.lower()
+                kept = [n for n in event.required if key not in n.lower()]
+                kept_optional = [n for n in event.optional if key not in n.lower()]
+                if len(kept) == len(event.required) and len(kept_optional) == len(event.optional):
+                    raise NotFoundError(f"{query} is not an attendee of this meeting.")
+                event.required, event.optional = kept, kept_optional
+            event.required += [resolve_person(state, n).name for n in add_required or []]
+            event.optional += [resolve_person(state, n).name for n in add_optional or []]
+            event.is_meeting = event.is_meeting or bool(add_required or add_optional)
+            event.sent = not event.is_meeting
+        return MeetingDraft(
+            ref=self._refs.put(BackendId(KIND, event.id)),
+            subject=event.subject,
+            start=event.start,
+            end=event.end,
+            location=event.location,
+            required=event.required,
+            optional=event.optional,
+            rooms=event.rooms,
+            is_meeting=event.is_meeting,
+            is_update=True,
+        )
+
+    def cleanup(self, start: datetime, end: datetime, *, apply: bool = False) -> list[EventSummary]:
+        """Canceled meetings (organized by others) in the period; `apply` removes them from the calendar."""
+        check_period(start, end)
+        with self._store.edit() as state:
+            targets = [
+                e
+                for e in sorted(state.events, key=lambda e: e.start)
+                if e.canceled and not e.organizer_is_me and e.start < end and e.end > start
+            ]
+            summaries = [self._summary(e) for e in targets]
+            if apply:
+                state.events = [e for e in state.events if e not in targets]
+        return summaries
 
     def send(self, ref: str) -> str:
         """Pretend to send an invitation: record it in the outbox (rate-limited and logged)."""

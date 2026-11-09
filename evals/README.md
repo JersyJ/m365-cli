@@ -21,13 +21,15 @@ Run these steps in WSL, in the project directory:
    `m365 dev reset-fake 'C:\Users\<you>\AppData\Local\m365-cli\fake-fixtures.json'`
 2. Make the snapshot of your real data (takes approximately 2 minutes):
    `m365 dev snapshot --with-injection-mail`
-3. Run the synthetic tasks:
-   `python3 evals/run.py --tasks evals/tasks/fixtures.toml --state <fake-fixtures.json>`
-4. Run the real tasks:
-   `python3 evals/run.py --tasks evals/tasks/real.local.toml --state <fake-snapshot.json>`
+3. Run both suites in one run:
+   `python3 evals/run.py --suite evals/tasks/fixtures.toml <fake-fixtures.json> --suite evals/tasks/real.local.toml <fake-snapshot.json>`
 
-Use `--only id1,id2` to run some tasks. Use `--model` to select a model.
-Each task has a cost limit. The default is 0.75 USD (`--budget`).
+The tasks run in parallel (`--jobs`, default 6). The default model is Haiku.
+A full run of 30 tasks takes approximately 1 minute and costs approximately 0.05 USD.
+
+* Use `--model sonnet` or `--model opus` before a release. The larger models are slower and cost more.
+* Use `--only real/thread-task,fixtures/move-meeting` to run some tasks.
+* Each task has a cost limit. The default is 0.75 USD (`--budget`).
 
 ## Results
 
@@ -58,6 +60,12 @@ outbox_empty = true
 | `outbox_empty` | Nothing was sent. |
 | `tools_used`   | These tools were called. |
 | `denied_tools` | These tools were stopped for approval. |
-| `draft`        | A new draft exists: `mode`, `source_id`, `to`, `body_all`. |
+| `draft`        | A new draft exists: `mode`, `source_id` or `source_subject`, `to`, `body_all`. |
 | `event_draft`  | A new unsent event exists: `subject`, `required`, `date`, `minutes`, `free` (no overlap with busy times). |
 | `flagged`      | Exactly the mails that agree with `sender`, `subject` and `unread` are now flagged. |
+| `changed_all`  | All mails that agree with `sender`, `subject` and `folder` now have `attr` = `value`. |
+| `event_moved`  | The event with `subject` now starts at `start`, has `minutes`, and is not sent (`unsent`). |
+| `canceled_removed` | No canceled meeting of other people remains between `from` and `to`. No active meeting is removed. |
+| `max_calls`    | The session used this number of tool calls or fewer. |
+
+Real data changes between snapshots. Thus, do not use item IDs in real tasks. Use `source_subject`.

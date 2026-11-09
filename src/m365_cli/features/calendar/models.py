@@ -1,12 +1,13 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 from enum import StrEnum
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
 Response = Literal["accept", "tentative", "decline"]
+Weekday = Literal["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
 
 
 class ResponseChoice(StrEnum):
@@ -15,6 +16,14 @@ class ResponseChoice(StrEnum):
     ACCEPT = "accept"
     TENTATIVE = "tentative"
     DECLINE = "decline"
+
+
+class RepeatEvery(StrEnum):
+    """CLI-facing values of `Repeat.every`."""
+
+    DAY = "day"
+    WEEK = "week"
+    MONTH = "month"
 
 
 class _Model(BaseModel):
@@ -53,6 +62,18 @@ class Event(EventSummary):
     truncated: bool = False
 
 
+class Repeat(_Model):
+    """How a meeting repeats; give at most one of `until` and `count` (neither = no end date)."""
+
+    every: Literal["day", "week", "month"]
+    interval: int = Field(default=1, ge=1, le=12, description="Every N days/weeks/months.")
+    days: list[Weekday] | None = Field(
+        default=None, description="Weekdays for 'week' (default: the start day)."
+    )
+    until: date | None = Field(default=None, description="Last possible date.")
+    count: int | None = Field(default=None, ge=1, le=500, description="Number of occurrences.")
+
+
 class MeetingDraft(_Model):
     """Saved calendar item.
 
@@ -71,6 +92,8 @@ class MeetingDraft(_Model):
     rooms: list[str] = Field(default_factory=list)
     text: str = ""
     is_meeting: bool = True
+    is_update: bool = False
+    repeat: Repeat | None = None
 
 
 class Slot(_Model):

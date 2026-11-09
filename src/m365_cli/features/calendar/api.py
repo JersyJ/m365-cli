@@ -4,7 +4,14 @@ from datetime import datetime
 from typing import TYPE_CHECKING, Protocol
 
 from m365_cli.core.paging import Page
-from m365_cli.features.calendar.models import Event, EventSummary, FreeTimeResult, MeetingDraft, Response
+from m365_cli.features.calendar.models import (
+    Event,
+    EventSummary,
+    FreeTimeResult,
+    MeetingDraft,
+    Repeat,
+    Response,
+)
 
 if TYPE_CHECKING:
     from m365_cli.core.context import AppContext
@@ -28,8 +35,9 @@ class CalendarApi(Protocol):
         offset: int = 0,
         limit: int = 50,
         include_canceled: bool = False,
+        owner: str | None = None,
     ) -> Page[EventSummary]:
-        """One page of events overlapping the period, earliest first."""
+        """One page of events overlapping the period, earliest first; `owner` = a shared calendar."""
         ...
 
     def read(self, ref: str) -> Event:
@@ -47,8 +55,31 @@ class CalendarApi(Protocol):
         rooms: list[str] | None = None,
         location: str = "",
         body: str = "",
+        repeat: Repeat | None = None,
     ) -> MeetingDraft:
         """Save a meeting (NOT sent) or, without attendees, a personal appointment."""
+        ...
+
+    def update(
+        self,
+        ref: str,
+        *,
+        start: datetime | None = None,
+        end: datetime | None = None,
+        subject: str | None = None,
+        location: str | None = None,
+        add_required: list[str] | None = None,
+        add_optional: list[str] | None = None,
+        remove: list[str] | None = None,
+    ) -> MeetingDraft:
+        """Change a meeting you organize (or a personal appointment) and save it; attendees are NOT notified.
+
+        For a meeting, send the update afterwards with `send()`.
+        """
+        ...
+
+    def cleanup(self, start: datetime, end: datetime, *, apply: bool = False) -> list[EventSummary]:
+        """Canceled meetings (organized by others) in the period; `apply` removes them from the calendar."""
         ...
 
     def send(self, ref: str) -> str:

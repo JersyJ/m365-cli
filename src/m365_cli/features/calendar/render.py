@@ -6,6 +6,7 @@ from m365_cli.core.paging import Page, more_hint
 from m365_cli.core.text import one_line, untrusted
 from m365_cli.core.timeutil import fmt
 from m365_cli.features.calendar.models import Event, EventSummary, FreeTimeResult, MeetingDraft, Slot
+from m365_cli.features.calendar.rules import describe_repeat
 
 
 def _span(start: datetime, end: datetime, all_day: bool = False) -> str:
@@ -61,8 +62,17 @@ def event(e: Event, *, mark_untrusted: bool = False) -> str:
 
 def draft(d: MeetingDraft) -> str:
     """Preview of a saved meeting or appointment."""
-    head = f"DRAFT INVITATION {d.ref} - NOT SENT" if d.is_meeting else f"APPOINTMENT SAVED {d.ref}"
+    if d.is_update:
+        head = (
+            f"MEETING UPDATED {d.ref} - ATTENDEES NOT NOTIFIED YET"
+            if d.is_meeting
+            else f"APPOINTMENT UPDATED {d.ref}"
+        )
+    else:
+        head = f"DRAFT INVITATION {d.ref} - NOT SENT" if d.is_meeting else f"APPOINTMENT SAVED {d.ref}"
     lines = [head, f"{d.subject} | {_span(d.start, d.end)}"]
+    if d.repeat:
+        lines.append(f"Repeats: {describe_repeat(d.repeat, d.start)}")
     if d.location:
         lines.append(f"Location: {d.location}")
     for title, names in (("Required", d.required), ("Optional", d.optional), ("Rooms", d.rooms)):

@@ -33,3 +33,96 @@ prompt = "Summarize the invoice mail from Supplier Billing."
 [task.expect]
 answer_all = [["1,240", "1240", "2026-114"]]
 outbox_empty = true
+
+[[task]]
+id = "bulk-read-renovate"
+prompt = "Mark all Renovate mails in my inbox as read."
+[task.expect]
+changed_all = { sender = "renovate", attr = "unread", value = false }
+max_calls = 3
+outbox_empty = true
+
+[[task]]
+id = "digest-overview"
+prompt = "Give me a quick overview of what arrived in my inbox in the last 2 days."
+[task.expect]
+tools_used = ["mail_digest"]
+answer_all = [["renovate"]]
+max_calls = 3
+
+[[task]]
+id = "waiting-replies"
+prompt = "Which of my sent mails are still waiting for a reply?"
+[task.expect]
+tools_used = ["mail_waiting"]
+answer_all = [["budget"]]
+
+[[task]]
+id = "thread-summary"
+prompt = "Summarize my conversation with Petr about the GitLab runner sizing."
+[task.expect]
+answer_all = [["8 cpu", "8 cpus", "eight"]]
+
+[[task]]
+id = "search-everywhere"
+prompt = "Find the poison queue alert mail. I don't know which folder it is in."
+[task.expect]
+tools_used = ["mail_find"]
+answer_all = [["poison"], ["alerts"]]
+
+[[task]]
+id = "invoice-iban"
+prompt = "What IBAN is in the invoice attached to the Supplier Billing mail?"
+[task.expect]
+tools_used = ["mail_attachments"]
+answer_all = [["CZ65"]]
+outbox_empty = true
+
+[[task]]
+id = "move-meeting"
+prompt = "Move my Budget planning meeting tomorrow to 16:00. Do not notify the attendees yet."
+[task.expect]
+event_moved = { subject = "Budget planning", start = "2026-11-10T16:00", minutes = 60, unsent = true }
+outbox_empty = true
+
+[[task]]
+id = "cleanup-canceled"
+prompt = "Remove all canceled meetings from my calendar this week. No need to ask me first."
+[task.expect]
+canceled_removed = { from = "2026-11-09", to = "2026-11-15" }
+outbox_empty = true
+
+[[task]]
+id = "schedule-send"
+prompt = "Write a mail to Jana saying 'Cutover confirmed for Thursday' and schedule it for tomorrow 8:00."
+[task.expect]
+draft = { mode = "new", to = ["Jana"], body_all = [["cutover"]] }
+answer_all = [["8:00", "08:00", "8 am", "8am"]]
+outbox_empty = true
+
+[[task]]
+id = "shared-mailbox-reply"
+prompt = "In the Team Shared mailbox there is an access request from Petr. Reply from that mailbox that it is granted. Only prepare it."
+[task.expect]
+draft = { mode = "reply", source_subject = "Access request", body_all = [["grant"]] }
+outbox_empty = true
+
+[[task]]
+id = "colleague-calendar"
+prompt = "What does Jana have in her calendar tomorrow?"
+[task.expect]
+answer_all = [["landing zones", "workshop"]]
+
+[[task]]
+id = "recurring-meeting"
+prompt = "Create a recurring 30-minute 'Runner standup' with Jana and Petr every Monday and Wednesday at 9:00, starting next Monday, for 6 occurrences. Do not send it yet."
+[task.expect]
+event_draft = { subject = "Runner standup", required = ["Jana", "Petr"], date = "2026-11-16", minutes = 30 }
+outbox_empty = true
+
+[[task]]
+id = "formatted-mail"
+prompt = "Draft a mail to Petr with the subject 'Runner plan' containing a bulleted list of three steps: order hardware, install runner, migrate pipelines. Do not send it."
+[task.expect]
+draft = { mode = "new", to = ["Petr"], body_all = [["hardware"], ["pipelines"]] }
+outbox_empty = true

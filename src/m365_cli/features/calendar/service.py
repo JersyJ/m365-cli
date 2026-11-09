@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import contextlib
 import re
-from datetime import datetime, timedelta
+from datetime import datetime, time, timedelta
 
 import pywintypes
 
@@ -13,6 +13,7 @@ from m365_cli.backends.outlook.constants import (
     OlMeetingResponse,
     OlMeetingStatus,
     OlRecipientType,
+    OlRecurrenceType,
     OlResponseStatus,
 )
 from m365_cli.backends.outlook.freebusy import own_calendar_blocks, recipient_blocks
@@ -25,8 +26,15 @@ from m365_cli.core.refs import BackendId
 from m365_cli.core.text import clean_body, truncate, with_signoff
 from m365_cli.core.timeutil import from_com, now, to_com
 from m365_cli.features.calendar.api import KIND, MEETING_MAIL_KIND
-from m365_cli.features.calendar.models import Event, EventSummary, FreeTimeResult, MeetingDraft, Response
-from m365_cli.features.calendar.rules import check_period, day_start, free_slots
+from m365_cli.features.calendar.models import (
+    Event,
+    EventSummary,
+    FreeTimeResult,
+    MeetingDraft,
+    Repeat,
+    Response,
+)
+from m365_cli.features.calendar.rules import WEEKDAY_BITS, check_period, check_repeat, day_start, free_slots
 
 _OCCURRENCE_SEP = "|"
 _JOIN_URL = re.compile(r"https://teams\.microsoft\.com/l/meetup-join/[^\s<>\"']+")
@@ -67,7 +75,7 @@ class CalendarService:
         item_id = item.EntryID
         if get(item, "IsRecurring", False):
             item_id += _OCCURRENCE_SEP + _start(item).isoformat()
-        return self._refs.put(BackendId(KIND, item_id, ol.default_store_id))
+        return self._refs.put(BackendId(KIND, item_id, ol.backend_id(item, KIND).container_id))
 
     @staticmethod
     def _appointment(ol: Outlook, bid: BackendId) -> Com:
@@ -88,12 +96,13 @@ class CalendarService:
         offset: int = 0,
         limit: int = 50,
         include_canceled: bool = False,
+        owner: str | None = None,
     ) -> Page[EventSummary]:
-        """One page of events overlapping the period, earliest first."""
+        """One page of events overlapping the period, earliest first; `owner` = a shared calendar."""
         check_period(start, end)
 
         def run(ol: Outlook) -> Page[EventSummary]:
-            summaries = (self._summary(ol, item) for item in iterate(ol.calendar_between(start, end)))
+            summaries = (self._summary(ol, item) for item in iterate(ol.calendar_between(start, end, owner)))
             visible = (s for s in summaries if include_canceled or not s.canceled)
             items, more = take_page(visible, offset=offset, limit=limit)
             return Page(items=items, offset=offset, has_more=more)
@@ -151,6 +160,7 @@ class CalendarService:
         rooms: list[str] | None = None,
         location: str = "",
         body: str = "",
+        repeat: Repeat | None = None,
     ) -> MeetingDraft:
         """Save a meeting (NOT sent) or, without attendees, a personal appointment.
 
@@ -159,6 +169,7 @@ class CalendarService:
             UnresolvedRecipientsError: An attendee is unknown; nothing is saved.
         """
         check_period(start, end)
+        weekdays = check_repeat(repeat, start) if repeat else []
         groups = (
             (required, OlRecipientType.TO),
             (optional, OlRecipientType.CC),
@@ -171,6 +182,8 @@ class CalendarService:
             item = ol.app.CreateItem(OlItemType.APPOINTMENT)
             item.Subject, item.Start, item.End = subject, to_com(start), to_com(end)
             item.Location, item.Body = location, text
+            if repeat:
+                _apply_repeat(item, repeat, weekdays, start, end)
             if attendees:
                 item.MeetingStatus = OlMeetingStatus.MEETING
                 for address, rtype in attendees:
@@ -182,8 +195,9 @@ class CalendarService:
                     raise
             item.Save()
             names = {t: [r.Name for r in item.Recipients if r.Type == t] for t in OlRecipientType}
+            series_ref = self._refs.put(BackendId(KIND, item.EntryID, ol.backend_id(item, KIND).container_id))
             return MeetingDraft(
-                ref=self._ref_for(ol, item),
+                ref=series_ref if repeat else self._ref_for(ol, item),
                 subject=subject,
                 start=start,
                 end=end,
@@ -193,7 +207,106 @@ class CalendarService:
                 rooms=names[OlRecipientType.BCC],
                 text=text,
                 is_meeting=bool(attendees),
+                repeat=repeat,
             )
+
+        return self._session.run(run)
+
+    def update(
+        self,
+        ref: str,
+        *,
+        start: datetime | None = None,
+        end: datetime | None = None,
+        subject: str | None = None,
+        location: str | None = None,
+        add_required: list[str] | None = None,
+        add_optional: list[str] | None = None,
+        remove: list[str] | None = None,
+    ) -> MeetingDraft:
+        """Change a meeting you organize (or a personal appointment) and save it; attendees are NOT notified.
+
+        A new start without an end keeps the duration. For a meeting, send the update with `send()`.
+
+        Raises:
+            InvalidInputError: Nothing to change, end before start, or you are not the organizer.
+            NotFoundError: An attendee to remove is not on the meeting.
+            UnresolvedRecipientsError: A new attendee is unknown; nothing is saved.
+        """
+        changes = (start, end, subject, location, add_required, add_optional, remove)
+        if all(c is None for c in changes):
+            raise InvalidInputError("Nothing to update.")
+        bid = self._refs.get(ref, kinds=KIND)
+
+        def run(ol: Outlook) -> MeetingDraft:
+            item = self._appointment(ol, bid)
+            is_meeting = item.MeetingStatus != OlMeetingStatus.NON_MEETING
+            if is_meeting and get(item, "ResponseStatus", 0) not in (
+                OlResponseStatus.ORGANIZED,
+                OlResponseStatus.NONE,
+            ):
+                raise InvalidInputError("You are not the organizer; ask the organizer or use respond.")
+            old_start = _start(item)
+            old_end = from_com(item.End) or old_start
+            new_start = start or old_start
+            new_end = end or (new_start + (old_end - old_start) if start else old_end)
+            check_period(new_start, new_end)
+            try:
+                if start or end:
+                    item.Start, item.End = to_com(new_start), to_com(new_end)
+                if subject is not None:
+                    item.Subject = subject
+                if location is not None:
+                    item.Location = location
+                for query in remove or []:
+                    _remove_attendee(ol, item, query)
+                additions = ((add_required, OlRecipientType.TO), (add_optional, OlRecipientType.CC))
+                for addresses, rtype in additions:
+                    for address in addresses or []:
+                        item.Recipients.Add(address).Type = rtype
+                if add_required or add_optional:
+                    item.MeetingStatus = OlMeetingStatus.MEETING
+                    ol.resolve_all(item)
+            except Exception:
+                item.Close(OL_DISCARD)
+                raise
+            item.Save()
+            names = {t: [r.Name for r in item.Recipients if r.Type == t] for t in OlRecipientType}
+            return MeetingDraft(
+                ref=self._ref_for(ol, item),
+                subject=str(item.Subject),
+                start=new_start,
+                end=new_end,
+                location=str(item.Location or ""),
+                required=names[OlRecipientType.TO],
+                optional=names[OlRecipientType.CC],
+                rooms=names[OlRecipientType.BCC],
+                is_meeting=item.MeetingStatus != OlMeetingStatus.NON_MEETING,
+                is_update=True,
+            )
+
+        return self._session.run(run)
+
+    def cleanup(self, start: datetime, end: datetime, *, apply: bool = False) -> list[EventSummary]:
+        """Canceled meetings (organized by others) in the period; with `apply`, remove them from the calendar.
+
+        Removing a canceled meeting notifies nobody.
+        """
+        check_period(start, end)
+
+        def run(ol: Outlook) -> list[EventSummary]:
+            targets = [
+                item
+                for item in iterate(ol.calendar_between(start, end))
+                if get(item, "MeetingStatus", 0)
+                in (OlMeetingStatus.CANCELED, OlMeetingStatus.RECEIVED_AND_CANCELED)
+                and get(item, "ResponseStatus", 0) != OlResponseStatus.ORGANIZED
+            ]
+            summaries = [self._summary(ol, item) for item in targets]
+            if apply:
+                for item in targets:
+                    item.Delete()
+            return summaries
 
         return self._session.run(run)
 
@@ -316,6 +429,47 @@ class CalendarService:
             return FreeTimeResult(slots=slots, notes=notes)
 
         return self._session.run(run)
+
+
+def _apply_repeat(item: Com, repeat: Repeat, weekdays: list[str], start: datetime, end: datetime) -> None:
+    """Turn an appointment into a recurring series (the pattern keeps the item's time of day)."""
+    pattern = item.GetRecurrencePattern()
+    pattern.RecurrenceType = {
+        "day": OlRecurrenceType.DAILY,
+        "week": OlRecurrenceType.WEEKLY,
+        "month": OlRecurrenceType.MONTHLY,
+    }[repeat.every]
+    pattern.Interval = repeat.interval
+    if weekdays:
+        pattern.DayOfWeekMask = sum(WEEKDAY_BITS[d] for d in weekdays)
+    if repeat.every == "month":
+        pattern.DayOfMonth = start.day
+    pattern.PatternStartDate = to_com(day_start(start))
+    pattern.StartTime, pattern.EndTime = to_com(start), to_com(end)
+    if repeat.until is not None:
+        pattern.PatternEndDate = to_com(datetime.combine(repeat.until, time()))
+    elif repeat.count is not None:
+        pattern.Occurrences = repeat.count
+    else:
+        pattern.NoEndDate = True
+
+
+def _remove_attendee(ol: Outlook, item: Com, query: str) -> None:
+    """Remove every attendee whose name or address contains `query`.
+
+    Raises:
+        NotFoundError: Nobody on the meeting matches.
+    """
+    key = query.strip().lower()
+    matches = [
+        r.Index
+        for r in item.Recipients
+        if key in str(r.Name).lower() or (r.Resolved and key in ol.smtp_of(r.AddressEntry).lower())
+    ]
+    if not matches:
+        raise NotFoundError(f"{query} is not an attendee of this meeting.")
+    for index in sorted(matches, reverse=True):
+        item.Recipients.Remove(index)
 
 
 def _start(item: Com) -> datetime:

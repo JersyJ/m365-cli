@@ -5,8 +5,10 @@ description = "Token-efficient Outlook (and later Teams) automation for AI agent
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
+    "markdown-it-py>=4.2.0",
     "mcp>=2.3.0",
     "pydantic>=2.14.3",
+    "pypdf>=7.0.0",
     "pywin32>=312",
     "typer>=0.28.0",
 ]

@@ -59,6 +59,22 @@ def attachments_of(item: Com) -> list[AttachmentInfo]:
     return result
 
 
+PROTECTED_MESSAGE_CLASSES = ("IPM.Note.SMIME", "IPM.Note.Microsoft.Voicemail.UM.CA")
+"""Message classes whose content Outlook's object model cannot read."""
+
+
+def is_protected(item: Com) -> bool:
+    """True for rights-protected (MIP/IRM, Do Not Forward) or S/MIME-encrypted mails.
+
+    Their body is only a wrapper ("This message is protected …"); the content is encrypted.
+    """
+    if get(item, "Permission", 0):
+        return True
+    if str(get(item, "MessageClass", "")).startswith(PROTECTED_MESSAGE_CLASSES[0]):
+        return True
+    return any(a.name.lower().endswith(".rpmsg") for a in attachments_of(item))
+
+
 def split_names(value: str | None) -> list[str]:
     """Split an Outlook recipient string ("A; B") into names."""
     return [n.strip() for n in (value or "").split(";") if n.strip()]

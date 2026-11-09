@@ -48,7 +48,7 @@ def test_unknown_recipient_keeps_nothing(fake_ctx: AppContext) -> None:
 def test_update_flags_and_moves(fake_ctx: AppContext) -> None:
     mail = mail_api(fake_ctx)
     ref = mail.find(MailQuery(subject="Cloud Weekly")).items[0].ref
-    mail.update(ref, flag="set", move_to="Inbox/Newsletters")
+    mail.update([ref], flag="set", move_to="Inbox/Newsletters")
     moved = mail.find(MailQuery(folder="inbox/newsletters")).items
     assert moved[0].flagged and moved[0].ref == ref
 

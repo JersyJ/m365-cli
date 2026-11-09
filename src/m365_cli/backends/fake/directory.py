@@ -30,6 +30,25 @@ def label(person: FakePerson) -> str:
     return person.email if person.name == person.email else f"{person.name} <{person.email}>"
 
 
+def resolve_mailbox(state: FakeState, mailbox: str | None) -> str:
+    """Name of a shared mailbox in the state; '' for the user's own mailbox.
+
+    Raises:
+        NotFoundError: The mailbox is unknown.
+    """
+    if not mailbox or mailbox.strip().lower() in (state.me.name.lower(), state.me.email.lower()):
+        return ""
+    key = mailbox.strip().lower()
+    matches = [m for m in state.mailboxes if m.lower() == key] or [
+        m for m in state.mailboxes if key in m.lower()
+    ]
+    if len(matches) == 1:
+        return matches[0]
+    raise NotFoundError(
+        f"No access to mailbox {mailbox!r}. Known: {', '.join([state.me.email, *state.mailboxes])}."
+    )
+
+
 def resolve_folder(state: FakeState, path: str) -> str:
     """Folder name in the state matching `path` (case-insensitive; 'trash' means 'deleted').
 

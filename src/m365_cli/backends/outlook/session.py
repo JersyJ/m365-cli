@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import concurrent.futures as cf
+import contextlib
 import threading
 from collections.abc import Callable, Iterator
 from datetime import datetime
@@ -10,7 +11,13 @@ import pythoncom
 import pywintypes
 import win32com.client
 
-from m365_cli.backends.outlook.constants import EXCHANGE_USER_TYPES, MAPI_E_NOT_FOUND, OlFolder
+from m365_cli.backends.outlook.constants import (
+    EXCHANGE_PUBLIC_FOLDERS,
+    EXCHANGE_USER_TYPES,
+    MAPI_E_NOT_FOUND,
+    OlFolder,
+    OlItemType,
+)
 from m365_cli.core.errors import (
     BackendUnavailableError,
     InvalidInputError,
@@ -34,6 +41,22 @@ FOLDER_ALIASES: dict[str, OlFolder] = {
     "outbox": OlFolder.OUTBOX,
     "calendar": OlFolder.CALENDAR,
 }
+
+SYSTEM_FOLDER_NAMES = frozenset(
+    {
+        "conversation action settings",
+        "conversation history",
+        "rss feeds",
+        "sync issues",
+        "yammer root",
+        "files",
+        "quick step settings",
+        "social activity notifications",
+        "externalcontacts",
+        "persondata",
+    }
+)
+"""Folders of type mail that hold no real mail; searching everywhere skips them."""
 
 
 def iterate(items: Com) -> Iterator[Com]:
@@ -76,11 +99,43 @@ class Outlook:
                 "Open classic Outlook and sign in."
             ) from exc
 
-    def default_folder(self, folder: OlFolder) -> Com:
-        """Default folder of the default mailbox."""
-        return self.ns.GetDefaultFolder(folder)
+    def mailboxes(self) -> list[tuple[str, str]]:
+        """Mailboxes in the Outlook profile as (name, kind); kind is primary | account | shared | other."""
+        kinds = {0: "primary", 4: "account", 1: "shared"}
+        return [
+            (str(store.DisplayName), kinds.get(store.ExchangeStoreType, "other"))
+            for store in self.ns.Stores
+            if store.ExchangeStoreType != EXCHANGE_PUBLIC_FOLDERS
+        ]
 
-    def folder(self, path: str) -> Com:
+    def _store(self, mailbox: str) -> Com | None:
+        """Store of a mailbox in the profile (exact or partial name); None when not in the profile."""
+        key = mailbox.strip().lower()
+        stores = [s for s in self.ns.Stores if s.ExchangeStoreType != EXCHANGE_PUBLIC_FOLDERS]
+        exact = [s for s in stores if str(s.DisplayName).lower() == key]
+        partial = exact or [s for s in stores if key in str(s.DisplayName).lower()]
+        return partial[0] if len(partial) == 1 else None
+
+    def default_folder(self, folder: OlFolder, mailbox: str | None = None) -> Com:
+        """Default folder of the default mailbox, or of `mailbox` (in the profile or shared with you).
+
+        Raises:
+            NotFoundError: The mailbox is unknown or you have no access to it.
+        """
+        if not mailbox:
+            return self.ns.GetDefaultFolder(folder)
+        store = self._store(mailbox)
+        try:
+            if store is not None:
+                with contextlib.suppress(pywintypes.com_error):
+                    return store.GetDefaultFolder(folder)
+            return self.ns.GetSharedDefaultFolder(self.recipient(mailbox), folder)
+        except (pywintypes.com_error, UnresolvedRecipientsError) as exc:
+            known = ", ".join(name for name, _ in self.mailboxes())
+            reason = com_error_info(exc)[1] if isinstance(exc, pywintypes.com_error) else str(exc)
+            raise NotFoundError(f"No access to mailbox {mailbox!r} ({reason}). Known: {known}.") from exc
+
+    def folder(self, path: str, mailbox: str | None = None) -> Com:
         """'inbox', 'sent', … or a path below the mailbox root such as 'Inbox/Projects/X'.
 
         Raises:
@@ -88,9 +143,8 @@ class Outlook:
         """
         key = path.strip().strip("/")
         if alias := FOLDER_ALIASES.get(key.lower()):
-            return self.default_folder(alias)
-        mailbox_root: Com = self.default_folder(OlFolder.INBOX).Parent
-        current = mailbox_root
+            return self.default_folder(alias, mailbox)
+        current: Com = self.default_folder(OlFolder.INBOX, mailbox).Parent
         for part in key.split("/"):
             match = next((f for f in current.Folders if f.Name.lower() == part.lower()), None)
             if match is None:
@@ -98,15 +152,56 @@ class Outlook:
             current = match
         return current
 
-    def calendar_between(self, start: datetime, end: datetime) -> Com:
-        """Calendar items overlapping [start, end), recurring occurrences expanded, sorted by start."""
-        items = self.default_folder(OlFolder.CALENDAR).Items
-        items.IncludeRecurrences = True
-        items.Sort("[Start]")
-        return items.Restrict(
-            f"@SQL=\"urn:schemas:calendar:dtstart\" < '{to_dasl_utc(end)}' "
-            f"AND \"urn:schemas:calendar:dtend\" > '{to_dasl_utc(start)}'"
-        )
+    def calendar_between(self, start: datetime, end: datetime, owner: str | None = None) -> Com:
+        """Calendar items overlapping [start, end), recurring occurrences expanded, sorted by start.
+
+        `owner` is a colleague or mailbox whose calendar is shared with you.
+
+        Raises:
+            InvalidInputError: The owner's calendar is not shared with you.
+        """
+        try:
+            items = self.default_folder(OlFolder.CALENDAR, owner).Items
+            items.IncludeRecurrences = True
+            items.Sort("[Start]")
+            found = items.Restrict(
+                f"@SQL=\"urn:schemas:calendar:dtstart\" < '{to_dasl_utc(end)}' "
+                f"AND \"urn:schemas:calendar:dtend\" > '{to_dasl_utc(start)}'"
+            )
+            if owner:
+                found.GetFirst()
+            return found
+        except (NotFoundError, pywintypes.com_error) as exc:
+            if not owner:
+                raise
+            raise InvalidInputError(
+                f"{owner}'s calendar is not shared with you; use cal_find_free_time or people_lookup for "
+                "their free/busy instead."
+            ) from exc
+
+    def mail_folders(self, mailbox: str | None = None) -> list[tuple[str, Com]]:
+        """All mail folders of a mailbox as ('Inbox/Alerts', folder), for searching everywhere.
+
+        Deleted Items, Junk, Outbox, Drafts and system folders (sync issues, RSS, …) are left out.
+        """
+        skip_ids = set()
+        for f in (OlFolder.DELETED, OlFolder.JUNK, OlFolder.OUTBOX, OlFolder.DRAFTS):
+            with contextlib.suppress(NotFoundError, pywintypes.com_error):
+                skip_ids.add(self.default_folder(f, mailbox).EntryID)
+        found: list[tuple[str, Com]] = []
+
+        def walk(parent: Com, path: str) -> None:
+            for sub in parent.Folders:
+                if sub.DefaultItemType != OlItemType.MAIL or sub.EntryID in skip_ids:
+                    continue
+                if sub.Name.lower() in SYSTEM_FOLDER_NAMES:
+                    continue
+                label = f"{path}/{sub.Name}" if path else sub.Name
+                found.append((label, sub))
+                walk(sub, label)
+
+        walk(self.default_folder(OlFolder.INBOX, mailbox).Parent, "")
+        return found
 
     def item(self, bid: BackendId) -> Com:
         """Item for a backend ID.
@@ -119,10 +214,37 @@ class Outlook:
         except pywintypes.com_error as exc:
             raise NotFoundError("Item no longer exists (moved or deleted?). List again.") from exc
 
-    @staticmethod
-    def backend_id(item: Com, kind: str, store_id: str) -> BackendId:
-        """Backend ID of an item."""
+    def backend_id(self, item: Com, kind: str, store_id: str | None = None) -> BackendId:
+        """Backend ID of an item; the mailbox (store) is taken from the item's folder unless given."""
+        if store_id is None:
+            try:
+                store_id = str(item.Parent.StoreID)
+            except (AttributeError, pywintypes.com_error):
+                store_id = self.default_store_id
         return BackendId(kind=kind, item_id=item.EntryID, container_id=store_id)
+
+    def set_sender(self, item: Com, mailbox: str) -> str:
+        """Send `item` from another account in the profile, or on behalf of a shared mailbox.
+
+        Returns a label of the sender for the preview.
+        """
+        account = next(
+            (a for a in self.ns.Accounts if str(a.SmtpAddress).lower() == mailbox.strip().lower()), None
+        )
+        if account is not None:
+            dispid = item._oleobj_.GetIDsOfNames("SendUsingAccount")
+            item._oleobj_.Invoke(dispid, 0, pythoncom.DISPATCH_PROPERTYPUTREF, False, account._oleobj_)
+            return str(account.SmtpAddress)
+        recipient = self.recipient(mailbox)
+        item.SentOnBehalfOfName = self.smtp_of(recipient.AddressEntry) or recipient.Name
+        return f"{recipient.Name} (on behalf)"
+
+    def sender_for_store(self, store_id: str) -> str | None:
+        """Mailbox to send from when replying to an item in `store_id` (None for the default mailbox)."""
+        if store_id == self.default_store_id:
+            return None
+        store = next((s for s in self.ns.Stores if s.StoreID == store_id), None)
+        return str(store.DisplayName) if store is not None else None
 
     @staticmethod
     def resolve_all(item: Com) -> None:

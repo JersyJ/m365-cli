@@ -26,6 +26,7 @@ class MailQuery(_Model):
     """Mail search; all given conditions must match. `text` matches subject or body."""
 
     folder: str = "inbox"
+    mailbox: str | None = None
     unread_only: bool = False
     since: datetime | None = None
     until: datetime | None = None
@@ -58,6 +59,8 @@ class MailSummary(_Model):
     flagged: bool = False
     kind: str = "mail"
     preview: str = ""
+    folder: str = ""
+    protected: bool = False
 
 
 class MailMessage(MailSummary):
@@ -73,6 +76,35 @@ class MailMessage(MailSummary):
     truncated: bool = False
 
 
+class DigestGroup(_Model):
+    """Mails of one sender, for the inbox digest. `top_subjects` are (normalized subject, count)."""
+
+    sender: str
+    count: int
+    unread: int
+    newest: datetime | None
+    newest_ref: str
+    top_subjects: list[tuple[str, int]] = Field(default_factory=list)
+
+
+class WaitingItem(_Model):
+    """A sent mail that got no reply yet."""
+
+    ref: str
+    sent: datetime
+    to: str
+    subject: str
+    days: int
+
+
+class AttachmentText(_Model):
+    """Extracted text of one attachment; `truncated` tells whether it was cut."""
+
+    name: str
+    text: str
+    truncated: bool = False
+
+
 class Draft(_Model):
     """Saved, unsent draft. `text` is what we wrote, without the quoted original."""
 
@@ -83,5 +115,8 @@ class Draft(_Model):
     bcc: list[str] = Field(default_factory=list)
     subject: str
     text: str
+    body_format: str = "markdown"
+    signature: str = ""
+    from_mailbox: str = ""
     includes_original: bool = False
     attachments: list[str] = Field(default_factory=list)

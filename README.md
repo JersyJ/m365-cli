@@ -1,31 +1,64 @@
 # m365-cli
 
-m365-cli gives an AI agent access to your own Microsoft 365 mailbox and calendar.
-It has two front-ends: a CLI (`m365`) and an MCP server (`m365 mcp`).
-The results are short text, so the agent uses few tokens.
+m365-cli gives an AI agent access to your own Outlook mailbox and calendar.
+It has an MCP server for Claude Code (`m365 mcp`) and a CLI (`m365`). The results are short text, so the agent uses few tokens.
 
-The tool controls classic Outlook through COM. It uses the Outlook profile that is already signed in.
-Thus, it needs no Graph app registration and no admin consent. The Intune device check stays valid.
-Teams support (through Teams on the web in Chrome) is the next feature.
+The tool controls classic Outlook through COM and uses the Outlook profile that is already signed in.
+It needs no Graph app registration and no admin consent.
 
-## Features
+## Tools
 
-| Feature    | CLI               | MCP tools |
-|------------|-------------------|-----------|
-| `mail`     | `m365 mail …`     | `mail_find`, `mail_read`, `mail_draft`, `mail_send`, `mail_update`, `mail_attachments` |
-| `calendar` | `m365 calendar …` | `cal_find`, `cal_read`, `cal_draft`, `cal_send`, `cal_respond`, `cal_cancel`, `cal_find_free_time` |
-| `people`   | `m365 people …`   | `people_lookup` |
+Each MCP tool has a CLI command with the same function.
 
-Mail: find, read, draft/send (new, reply, reply-all, forward), flag/move/delete, attachments.
-Calendar: events (also recurring and moved occurrences), invitations, responses, common free time.
-People: contact card (email, title, department, phone, manager), availability and out of office.
+### Mail
+
+| MCP tool | CLI | What it does |
+|---|---|---|
+| `mail_find` | `m365 mail list` | Finds mail in a folder or in all folders (`folder="all"`). Filters: sender, subject, text, date, unread, flagged, attachments. Pages with `offset`. |
+| `mail_digest` | `m365 mail digest` | Groups many mails by sender: count, unread, newest time, top subjects. Use it for "what is new". |
+| `mail_read` | `m365 mail read` | Shows one mail as plain text, without the quoted history (`detailed` shows all). |
+| `mail_thread` | `m365 mail thread` | Shows a full conversation over all folders, from the first message to the last. |
+| `mail_waiting` | `m365 mail waiting` | Shows sent mails that have no reply after N days. |
+| `mail_mailboxes` | `m365 mail mailboxes` | Shows the mailboxes you can use: your mailbox, other accounts, shared mailboxes. |
+| `mail_draft` | `m365 mail new` / `reply` / `forward` | Saves a draft: new, reply, reply-all or forward. Adds your Outlook font and signature. The body is Markdown. |
+| `mail_send` | `m365 mail send` | Sends a draft now, or at a later time (`send_at`). |
+| `mail_update` | `m365 mail update` | Marks read or unread, flags, sets categories, moves, deletes. Works on one mail, many refs, or all mails that agree with a filter. |
+| `mail_attachments` | `m365 mail attachments` | Lists or saves the attachments, or shows the text of a PDF, DOCX, PPTX, XLSX or text file. |
+
+Most mail tools accept `mailbox` (a shared mailbox or another account). `mail_draft` accepts `from_mailbox`.
+A reply to a mail in another mailbox goes out from that mailbox.
+
+### Calendar
+
+| MCP tool | CLI | What it does |
+|---|---|---|
+| `cal_find` | `m365 calendar list` | Lists the events of a period, also recurring and moved occurrences. With `owner`, shows the calendar of a colleague who shares it with you. |
+| `cal_read` | `m365 calendar read` | Shows one event: organizer, attendees, Teams link, description. |
+| `cal_find_free_time` | `m365 calendar free` | Finds periods in working hours when you and the attendees are free. |
+| `cal_draft` | `m365 calendar new` | Saves a meeting (not sent) or a personal appointment. `repeat` makes a recurring meeting. |
+| `cal_update` | `m365 calendar update` | Moves a meeting, or changes attendees, title or location. The attendees get no message yet. |
+| `cal_send` | `m365 calendar send` | Sends the invitation or the update of a meeting that you organize. |
+| `cal_respond` | `m365 calendar respond` | Accepts, tentatively accepts or declines a meeting. |
+| `cal_cancel` | `m365 calendar cancel` | Cancels a meeting that you organize, or deletes a personal appointment. |
+| `cal_cleanup` | `m365 calendar cleanup` | Removes canceled meetings of other people from your calendar. It notifies nobody. |
+
+### People
+
+| MCP tool | CLI | What it does |
+|---|---|---|
+| `people_lookup` | `m365 people find` / `status` | Shows the contact card (email, title, department, phone, manager) and the availability: free or busy now, out of office. |
+
+### Limits
+
+* A mail with rights protection (Microsoft Information Protection) or S/MIME has the mark `[protected]`. The tool cannot read its content.
+* Most colleagues share only free/busy. Then `cal_find` with `owner` gives an error and tells you to use free/busy.
 
 ## Safety
 
-* Each send has two steps. `*_draft` saves a draft and shows a preview. Only `mail_send`, `cal_send`, `cal_respond` and `cal_cancel` send.
+* Each send has two steps. `mail_draft`, `cal_draft` and `cal_update` save and show a preview. Only `mail_send`, `cal_send`, `cal_respond` and `cal_cancel` send.
 * The four send tools have the flag `anthropic/requiresUserInteraction`. Claude Code asks you before each call. Allow rules and auto mode do not skip the question.
 * A send limit applies (default: 5 per minute). All sends go into a log. Run `m365 log` to see the log.
-* Mail bodies and event descriptions are between `<<<UNTRUSTED …>>>` markers. The server instructions tell the model to not obey text from other people.
+* Mail bodies, attachment text and event descriptions are between `<<<UNTRUSTED …>>>` markers. The server instructions tell the model to not obey text from other people.
 * The tool removes control characters and invisible characters from all output.
 * The CLI asks before it sends. Use `--yes` to send without a question. Use `--draft` to save only.
 
@@ -40,15 +73,13 @@ People: contact card (email, title, department, phone, manager), availability an
 In WSL, call `/mnt/c/Users/<you>/src/m365-cli/.venv/Scripts/m365.exe`.
 A wrapper in `~/.local/bin/m365` makes this easier.
 
-## Connect Claude Code
+### Connect Claude Code
 
-Run this command once (in WSL or in Windows):
+Run this command once (in WSL or in Windows), then start a new Claude Code session:
 
 ```bash
 claude mcp add m365 -s user -- /mnt/c/Users/<you>/src/m365-cli/.venv/Scripts/m365.exe mcp
 ```
-
-Then start a new Claude Code session.
 
 ## Settings
 
@@ -56,65 +87,25 @@ The file `%APPDATA%\m365-cli\config.toml` is optional. All keys are optional.
 
 ```toml
 disabled_features = ["people"]
+signature_new = "auto"
+signature_reply = "auto"
+signoff = ""
 list_limit = 15
 body_max_chars = 6000
-signoff = ""
 work_hours = [8, 17]
 max_sends_per_minute = 5
 ```
 
-* `disabled_features` removes features. Fewer tools use fewer tokens.
-* `signoff` is text that the tool adds to each sent text.
+| Key | Meaning |
+|---|---|
+| `disabled_features` | Features to remove (`mail`, `calendar`, `people`). Fewer tools use fewer tokens. |
+| `signature_new`, `signature_reply` | `"auto"` (the Outlook default), `"none"`, or the name of an Outlook signature. |
+| `signoff` | Text that the tool adds to each text that it sends. |
+| `list_limit` | Number of items in a list (default 15). |
+| `body_max_chars` | Maximum length of a mail body in the result (default 6000). |
+| `work_hours` | Start hour and end hour for free-time searches. |
+| `max_sends_per_minute` | Send limit (default 5). |
 
-## Architecture
+## More documentation
 
-```
-src/m365_cli/
-  cli.py, mcp_server.py   front-ends; they use only the enabled features
-  core/                   shared parts: settings, errors, refs, paging, send log, text and time helpers
-  backends/outlook/       COM session (one STA thread, time-out), constants, free/busy
-  backends/fake/          fake backend (JSON state), test data, snapshot of real data
-  features/<name>/        api.py, service.py (Outlook), fake.py, models.py, rules.py, render.py, cli.py, mcp.py
-```
-
-Rules:
-
-* A feature uses `core` and `backends`. A feature never uses another feature.
-* `api.py` defines the interface. `service.py` (Outlook) and `fake.py` (fake backend) supply it.
-* `rules.py` has the logic that all backends share. `render.py` makes the short text.
-* `cli.py` and `mcp.py` are thin adapters. They do not contain logic.
-* A backend starts at its first use. A command that does not use Outlook does not start Outlook.
-
-### Add a feature
-
-1. Make the directory `src/m365_cli/features/<name>/` with the files of the table above.
-2. In `__init__.py`, export `FEATURE = Feature(name=..., help=..., build_cli=..., register_mcp=...)`.
-3. Do nothing more. The front-ends find the feature automatically.
-
-To remove a feature, add its name to `disabled_features`, or delete its directory.
-
-## Outlook quirks
-
-* pywin32 labels Outlook times as UTC, but the values are local times. pywin32 also shifts naive times when it writes. `core.timeutil.from_com` and `to_com` correct this.
-* Jet filters read dates with the Windows locale. On Czech Windows, Jet reads `2026-11-09` as 11 September. Thus, all filters use DASL with UTC ISO dates.
-* Occurrences of a recurring meeting have the same EntryID as the series. Thus, the ref of an occurrence also contains its start time.
-* `Recipient.FreeBusy` can return no data for your own mailbox. Thus, the tool reads your own calendar.
-* All COM calls run on one thread with a time-out. A stuck call does not stop the next call.
-
-## Tests and evaluations
-
-Run the checks:
-
-```powershell
-uv run ruff format; uv run ruff check; uv run pyright; uv run pytest
-```
-
-The unit tests use the fake backend with synthetic data. They do not need Outlook.
-
-The evaluations run real Claude Code sessions on the fake backend. See `evals/README.md`.
-
-## Rules for code text
-
-* Do not write `#` comments. Write docstrings.
-* Only an `__init__.py` file has a module docstring.
-* ruff (`D` rules, Google convention) and pyright check the code.
+* [Architecture and code rules](docs/architecture.md)

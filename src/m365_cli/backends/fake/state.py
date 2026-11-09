@@ -14,6 +14,7 @@ class FakeAttachment(BaseModel):
     name: str
     size: int
     inline: bool = False
+    text: str = ""
 
 
 class FakeMail(BaseModel):
@@ -38,6 +39,9 @@ class FakeMail(BaseModel):
     draft_mode: str | None = None
     source_id: str | None = None
     event_id: str | None = None
+    protected: bool = False
+    mailbox: str = ""
+    from_mailbox: str = ""
 
 
 class FakeBlock(BaseModel):
@@ -70,10 +74,15 @@ class FakeEvent(BaseModel):
     is_meeting: bool = True
     sent: bool = True
     join_url: str = ""
+    repeat: dict[str, object] | None = None
 
 
 class FakePerson(BaseModel):
-    """Fake address-book entry; `blocks` is None when no free/busy is available (e.g. external)."""
+    """Fake address-book entry.
+
+    `blocks` is None when no free/busy is available (e.g. external); `calendar` holds the events of a
+    calendar shared with the user (None = not shared).
+    """
 
     name: str
     email: str
@@ -84,6 +93,7 @@ class FakePerson(BaseModel):
     mobile: str = ""
     manager: str = ""
     blocks: list[FakeBlock] | None = Field(default_factory=list)
+    calendar: list[FakeEvent] | None = None
 
 
 class Outgoing(BaseModel):
@@ -94,6 +104,7 @@ class Outgoing(BaseModel):
     item_id: str
     summary: str
     recipients: list[str] = Field(default_factory=list)
+    send_at: datetime | None = None
 
 
 class SavedFile(BaseModel):
@@ -119,6 +130,8 @@ class FakeState(BaseModel):
     mails: list[FakeMail]
     events: list[FakeEvent]
     people: list[FakePerson]
+    signatures: dict[str, str] = Field(default_factory=dict)
+    mailboxes: list[str] = Field(default_factory=list)
     outbox: list[Outgoing] = Field(default_factory=list)
     saved_files: list[SavedFile] = Field(default_factory=list)
     next_id: int = 1000

@@ -12,6 +12,7 @@ from m365_cli.core.feature import discover_features
 from m365_cli.mcp_server import build_server
 
 SEND_TOOLS = {"mail_send", "cal_send", "cal_respond", "cal_cancel"}
+TOOL_COUNT = 20
 
 
 def call(ctx: AppContext, name: str, **arguments: Any) -> str:
@@ -27,7 +28,7 @@ def test_features_are_discovered_and_can_be_disabled() -> None:
 
 def test_tool_metadata(fake_ctx: AppContext) -> None:
     tools = {t.name: t for t in asyncio.run(build_server(fake_ctx).list_tools())}
-    assert len(tools) == 14
+    assert len(tools) == TOOL_COUNT
     for name, tool in tools.items():
         assert tool.title, name
         assert tool.annotations is not None, name

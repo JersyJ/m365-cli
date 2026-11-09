@@ -79,6 +79,14 @@ class OlRecipientType(IntEnum):
     BCC = 3
 
 
+class OlRecurrenceType(IntEnum):
+    """Recurrence types of a recurrence pattern (`OlRecurrenceType`)."""
+
+    DAILY = 0
+    WEEKLY = 1
+    MONTHLY = 2
+
+
 class OlFlagStatus(IntEnum):
     """Flag status of a mail (`OlFlagStatus`)."""
 
@@ -101,3 +109,9 @@ olExchangeUserAddressEntry (0) and olExchangeRemoteUserAddressEntry (5).
 
 MAPI_E_NOT_FOUND = -2147221233
 """MAPI_E_NOT_FOUND (0x8004010F), surfaced through `pywintypes.com_error`."""
+
+EXCHANGE_DELEGATE_STORE = 1
+"""`OlExchangeStoreType.olExchangeMailbox`: a shared/delegate mailbox opened with the main account."""
+
+EXCHANGE_PUBLIC_FOLDERS = 2
+"""`OlExchangeStoreType.olExchangePublicFolder`: public folders, not a mailbox."""
