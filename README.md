@@ -1,9 +1,10 @@
 # m365-cli
 
-m365-cli gives an AI agent access to your own Outlook mailbox and calendar.
+m365-cli gives an AI agent access to your own Outlook mailbox, calendar and Teams chats.
 It has an MCP server for Claude Code (`m365 mcp`) and a CLI (`m365`). The results are short text, so the agent uses few tokens.
 
 The tool controls classic Outlook through COM and uses the Outlook profile that is already signed in.
+For Teams, it uses the Teams web app in a separate browser profile. The calls run inside the signed-in Teams tab, so the sign-in tokens stay in the browser.
 It needs no Graph app registration and no admin consent.
 
 ## Tools
@@ -48,17 +49,32 @@ A reply to a mail in another mailbox goes out from that mailbox.
 |---|---|---|
 | `people_lookup` | `m365 people find` / `status` | Shows the contact card (email, title, department, phone, manager) and the availability: free or busy now, out of office. |
 
+### Teams
+
+| MCP tool | CLI | What it does |
+|---|---|---|
+| `teams_find` | `m365 teams list` | Lists chats, group chats, meeting chats and channels, newest activity first. Filters: name, kind, unread. |
+| `teams_read` | `m365 teams read` | Shows the newest messages of a chat: sender, time, text, quoted message, reactions, files. Pages with `older`. |
+| `teams_draft` | `m365 teams write` | Prepares a message, a reply (with quote) or a first message to a person. The body is Markdown. `@[Name]` mentions a chat member. |
+| `teams_send` | `m365 teams send` | Sends a draft now, or at a later time (`send_at`). |
+
+A chat can be a ref (`c:…`) or a name: the chat title, or the other person of a 1:1 chat.
+
 ### Limits
 
 * A mail with rights protection (Microsoft Information Protection) or S/MIME has the mark `[protected]`. The tool cannot read its content.
 * Most colleagues share only free/busy. Then `cal_find` with `owner` gives an error and tells you to use free/busy.
+* Teams uses your home account only. Guest accounts in other tenants are not used.
+* Teams has no supported API for this. The tool uses the internal API of the Teams web app, which can change. See [docs/teams-api.md](docs/teams-api.md).
+* The first Teams listing can take one minute, because the tool looks up the names of 1:1 chats. Later listings use a cache.
 
 ## Safety
 
-* Each send has two steps. `mail_draft`, `cal_draft` and `cal_update` save and show a preview. Only `mail_send`, `cal_send`, `cal_respond` and `cal_cancel` send.
-* The four send tools have the flag `anthropic/requiresUserInteraction`. Claude Code asks you before each call. Allow rules and auto mode do not skip the question.
+* Each send has two steps. `mail_draft`, `cal_draft`, `cal_update` and `teams_draft` save and show a preview. Only `mail_send`, `cal_send`, `cal_respond`, `cal_cancel` and `teams_send` send.
+* The five send tools have the flag `anthropic/requiresUserInteraction`. Claude Code asks you before each call. Allow rules and auto mode do not skip the question.
+* A Teams draft stays on your computer until `teams_send`. The tool never sends to the chats in `teams_protected`.
 * A send limit applies (default: 5 per minute). All sends go into a log. Run `m365 log` to see the log.
-* Mail bodies, attachment text and event descriptions are between `<<<UNTRUSTED …>>>` markers. The server instructions tell the model to not obey text from other people.
+* Mail bodies, attachment text, event descriptions and Teams messages are between `<<<UNTRUSTED …>>>` markers. The server instructions tell the model to not obey text from other people.
 * The tool removes control characters and invisible characters from all output.
 * The CLI asks before it sends. Use `--yes` to send without a question. Use `--draft` to save only.
 
@@ -72,6 +88,14 @@ A reply to a mail in another mailbox goes out from that mailbox.
 
 In WSL, call `/mnt/c/Users/<you>/src/m365-cli/.venv/Scripts/m365.exe`.
 A wrapper in `~/.local/bin/m365` makes this easier.
+
+### Sign in to Teams (once)
+
+1. Run `uv run m365 teams browser`. The tool starts Chrome (or Edge) with its own profile in `%LOCALAPPDATA%\m365-cli\chrome-teams`.
+2. If Teams asks you to sign in, the window becomes visible. Sign in with your work account.
+3. Run `uv run m365 teams browser` again. The output shows `"skype"` and `"me"` when Teams is ready.
+
+After that, the tool starts the browser off-screen when it needs Teams. Do not close the browser if you use Teams often: a start takes approximately 20 seconds.
 
 ### Connect Claude Code
 
@@ -105,7 +129,7 @@ VS Code (Copilot agent mode): add this server to the user file `%APPDATA%\Code\U
 
 Safety with Copilot: the flag `anthropic/requiresUserInteraction` works only in Claude Code.
 Copilot asks before each tool call by default. Do not auto-approve the send tools.
-In Copilot CLI, block them for unattended runs: `--deny-tool 'm365(mail_send)' --deny-tool 'm365(cal_send)' --deny-tool 'm365(cal_respond)' --deny-tool 'm365(cal_cancel)'`.
+In Copilot CLI, block them for unattended runs: `--deny-tool 'm365(mail_send)' --deny-tool 'm365(cal_send)' --deny-tool 'm365(cal_respond)' --deny-tool 'm365(cal_cancel)' --deny-tool 'm365(teams_send)'`.
 
 ## Settings
 
@@ -120,18 +144,24 @@ list_limit = 15
 body_max_chars = 6000
 work_hours = [8, 17]
 max_sends_per_minute = 5
+teams_protected = ["All Company*", "*Announcements*"]
+teams_port = 9222
 ```
 
 | Key | Meaning |
 |---|---|
-| `disabled_features` | Features to remove (`mail`, `calendar`, `people`). Fewer tools use fewer tokens. |
+| `disabled_features` | Features to remove (`mail`, `calendar`, `people`, `teams`). Fewer tools use fewer tokens. |
 | `signature_new`, `signature_reply` | `"auto"` (the Outlook default), `"none"`, or the name of an Outlook signature. |
 | `signoff` | Text that the tool adds to each text that it sends. |
 | `list_limit` | Number of items in a list (default 15). |
 | `body_max_chars` | Maximum length of a mail body in the result (default 6000). |
 | `work_hours` | Start hour and end hour for free-time searches. |
-| `max_sends_per_minute` | Send limit (default 5). |
+| `max_sends_per_minute` | Send limit for mail, invitations and Teams messages (default 5). |
+| `teams_protected` | Teams chat titles that the tool never sends to. `*` is a wildcard. |
+| `teams_port` | DevTools port of the Teams browser on 127.0.0.1 (default 9222). |
+| `teams_browser`, `teams_profile_dir` | Browser executable (default: Chrome, then Edge) and its profile directory. |
 
 ## More documentation
 
 * [Architecture and code rules](docs/architecture.md)
+* [Teams web API notes](docs/teams-api.md)

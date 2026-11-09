@@ -11,8 +11,8 @@ from m365_cli.core.context import AppContext
 from m365_cli.core.feature import discover_features
 from m365_cli.mcp_server import build_server
 
-SEND_TOOLS = {"mail_send", "cal_send", "cal_respond", "cal_cancel"}
-TOOL_COUNT = 20
+SEND_TOOLS = {"mail_send", "cal_send", "cal_respond", "cal_cancel", "teams_send"}
+TOOL_COUNT = 24
 
 
 def call(ctx: AppContext, name: str, **arguments: Any) -> str:
@@ -22,8 +22,10 @@ def call(ctx: AppContext, name: str, **arguments: Any) -> str:
 
 
 def test_features_are_discovered_and_can_be_disabled() -> None:
-    assert [f.name for f in discover_features(Settings())] == ["calendar", "mail", "people"]
-    assert [f.name for f in discover_features(Settings(disabled_features=["people", "calendar"]))] == ["mail"]
+    assert [f.name for f in discover_features(Settings())] == ["calendar", "mail", "people", "teams"]
+    assert [
+        f.name for f in discover_features(Settings(disabled_features=["people", "calendar", "teams"]))
+    ] == ["mail"]
 
 
 def test_tool_metadata(fake_ctx: AppContext) -> None:
@@ -41,6 +43,7 @@ def test_mcp_server_does_not_start_outlook(tmp_path: Path) -> None:
     ctx = AppContext(Settings(data_dir=tmp_path))
     asyncio.run(build_server(ctx).list_tools())
     assert "outlook" not in ctx.__dict__
+    assert "teams" not in ctx.__dict__
 
 
 def test_find_read_and_untrusted_body(fake_ctx: AppContext) -> None:

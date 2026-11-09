@@ -119,7 +119,8 @@ def check(expect: dict[str, Any], state: dict[str, Any], original: dict[str, Any
     """Compare the final fake state and the answer with the expectations of a task.
 
     Supported keys: answer_all (list of alternative groups), answer_none, outbox_empty, tools_used,
-    denied_tools, draft, event_draft, flagged, changed_all, event_moved, canceled_removed, max_calls.
+    denied_tools, draft, teams_draft, no_teams_draft, event_draft, flagged, changed_all, event_moved,
+    canceled_removed, max_calls.
     See evals/README.md.
     """
     failures: list[str] = []
@@ -136,6 +137,11 @@ def check(expect: dict[str, Any], state: dict[str, Any], original: dict[str, Any
     ]
     if spec := expect.get("draft"):
         failures += _check_draft(spec, state, original)
+    if spec := expect.get("teams_draft"):
+        failures += _check_teams_draft(spec, state, original)
+    new_teams_drafts = set(state.get("teams_drafts", {})) - set(original.get("teams_drafts", {}))
+    if expect.get("no_teams_draft") and new_teams_drafts:
+        failures.append("a Teams draft was created")
     if spec := expect.get("event_draft"):
         failures += _check_event_draft(spec, state, original)
     if spec := expect.get("flagged"):
@@ -172,6 +178,19 @@ def _check_draft(spec: dict[str, Any], state: dict[str, Any], original: dict[str
         ):
             return []
     return [f"no draft matching {spec}; drafts: {[(d['draft_mode'], d['subject'], d['to']) for d in drafts]}"]
+
+
+def _check_teams_draft(spec: dict[str, Any], state: dict[str, Any], original: dict[str, Any]) -> list[str]:
+    known = set(original.get("teams_drafts", {}))
+    drafts = [d for k, d in state.get("teams_drafts", {}).items() if k not in known]
+    for d in drafts:
+        if (
+            spec.get("chat", "").lower() in d["chat_title"].lower()
+            and (not spec.get("reply") or d["reply_to_id"])
+            and all(any(w.lower() in d["text"].lower() for w in group) for group in spec.get("body_all", []))
+        ):
+            return []
+    return [f"no Teams draft matching {spec}; drafts: {[(d['chat_title'], d['text'][:40]) for d in drafts]}"]
 
 
 def _overlaps(start: str, end: str, blocks: list[dict[str, Any]]) -> bool:

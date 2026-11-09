@@ -12,6 +12,7 @@ from m365_cli.core.timeutil import use_clock
 if TYPE_CHECKING:
     from m365_cli.backends.fake import FakeStore
     from m365_cli.backends.outlook import OutlookSession
+    from m365_cli.backends.teams import TeamsSession
 
 
 class AppContext:
@@ -54,6 +55,20 @@ class AppContext:
         return OutlookSession()
 
     @cached_property
+    def teams(self) -> TeamsSession:
+        """Teams session in the dedicated browser, started on first use."""
+        from m365_cli.backends.teams import BrowserConfig, TeamsSession
+
+        s = self.settings
+        return TeamsSession(
+            BrowserConfig(
+                port=s.teams_port,
+                profile_dir=s.teams_profile_dir or s.data_dir / "chrome-teams",
+                executable=s.teams_browser,
+            )
+        )
+
+    @cached_property
     def fake(self) -> FakeStore:
         """Fake backend store.
 
@@ -70,5 +85,7 @@ class AppContext:
         """Stop running backends and restore the real clock."""
         if "outlook" in self.__dict__:
             self.outlook.close()
+        if "teams" in self.__dict__:
+            self.teams.close()
         if self.is_fake:
             use_clock(None)

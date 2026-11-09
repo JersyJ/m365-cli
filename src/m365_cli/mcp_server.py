@@ -8,9 +8,9 @@ from m365_cli.core.feature import discover_features
 from m365_cli.core.mcp_support import UNTRUSTED_NOTE
 
 BASE_INSTRUCTIONS = (
-    "Access to the user's own Microsoft 365 mailbox and calendar. Results are compact text; pass refs back "
-    "exactly as shown. Never send anything (mail, invitations, responses) without explicit user approval. "
-    + UNTRUSTED_NOTE
+    "Access to the user's own Microsoft 365 mailbox, calendar and Teams. Results are compact text; pass refs "
+    "back exactly as shown. Never send anything (mail, Teams messages, invitations, responses) without "
+    "explicit user approval. " + UNTRUSTED_NOTE
 )
 
 

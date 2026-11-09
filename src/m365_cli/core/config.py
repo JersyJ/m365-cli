@@ -47,6 +47,11 @@ class Settings(BaseModel):
         signature_reply = "Short"
         work_hours = [8, 17]
         max_sends_per_minute = 5
+        teams_protected = ["All Company*", "*Announcements*"]
+
+    Teams: `teams_port` is the DevTools port of the dedicated Teams browser, `teams_browser` its
+    executable (default: Chrome, then Edge), `teams_profile_dir` its profile (default: data_dir /
+    chrome-teams), and `teams_protected` lists chat titles ('*' wildcards) the tool never sends to.
     """
 
     model_config = ConfigDict(extra="forbid", frozen=True)
@@ -62,6 +67,10 @@ class Settings(BaseModel):
     work_hours: tuple[int, int] = (8, 17)
     max_sends_per_minute: int = Field(default=5, ge=1, le=60)
     data_dir: Path = Field(default_factory=data_dir)
+    teams_port: int = Field(default=9222, ge=1024, le=65535)
+    teams_browser: Path | None = None
+    teams_profile_dir: Path | None = None
+    teams_protected: list[str] = Field(default_factory=list)
 
     @classmethod
     def load(cls, path: Path | None = None, **overrides: Any) -> Settings:

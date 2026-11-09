@@ -96,6 +96,32 @@ class FakePerson(BaseModel):
     calendar: list[FakeEvent] | None = None
 
 
+class FakeTeamsMessage(BaseModel):
+    """Fake Teams message; `html` is the message content as Teams stores it."""
+
+    id: str
+    sender: str
+    time: datetime
+    html: str
+    edited: bool = False
+    deleted: bool = False
+    system: bool = False
+    reactions: dict[str, int] = Field(default_factory=dict)
+    files: list[str] = Field(default_factory=list)
+
+
+class FakeChat(BaseModel):
+    """Fake Teams chat; `members` are names of people in `FakeState.people` (or the user)."""
+
+    id: str
+    kind: Literal["chat", "group", "meeting", "channel"]
+    title: str
+    members: list[str] = Field(default_factory=list)
+    unread: bool = False
+    deleted: bool = False
+    messages: list[FakeTeamsMessage] = Field(default_factory=list)
+
+
 class Outgoing(BaseModel):
     """A send action recorded by the fake backend (it never really sends)."""
 
@@ -134,6 +160,8 @@ class FakeState(BaseModel):
     mailboxes: list[str] = Field(default_factory=list)
     outbox: list[Outgoing] = Field(default_factory=list)
     saved_files: list[SavedFile] = Field(default_factory=list)
+    teams_chats: list[FakeChat] = Field(default_factory=list)
+    teams_drafts: dict[str, dict[str, object]] = Field(default_factory=dict)
     next_id: int = 1000
 
     def new_id(self, prefix: str) -> str:

@@ -61,6 +61,8 @@ outbox_empty = true
 | `tools_used`   | These tools were called. |
 | `denied_tools` | These tools were stopped for approval. |
 | `draft`        | A new draft exists: `mode`, `source_id` or `source_subject`, `to`, `body_all`. |
+| `teams_draft`  | A new Teams draft exists: `chat` (part of the title), `reply` (it replies to a message), `body_all`. |
+| `no_teams_draft` | No Teams draft was made. |
 | `event_draft`  | A new unsent event exists: `subject`, `required`, `date`, `minutes`, `free` (no overlap with busy times). |
 | `flagged`      | Exactly the mails that agree with `sender`, `subject` and `unread` are now flagged. |
 | `changed_all`  | All mails that agree with `sender`, `subject` and `folder` now have `attr` = `value`. |

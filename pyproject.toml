@@ -11,6 +11,7 @@ dependencies = [
     "pypdf>=7.0.0",
     "pywin32>=312",
     "typer>=0.28.0",
+    "websockets>=15",
 ]
 
 [project.scripts]

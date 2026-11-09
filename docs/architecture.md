@@ -7,6 +7,7 @@ src/m365_cli/
   cli.py, mcp_server.py   front-ends; they use only the enabled features
   core/                   shared parts: settings, errors, refs, paging, send log, text, markup and time helpers
   backends/outlook/       COM session (one STA thread, time-out), constants, free/busy, profile (signatures, fonts)
+  backends/teams/         DevTools connection to the Teams browser, page script (hook.js), Teams session
   backends/fake/          fake backend (JSON state), test data, snapshot of real data
   features/<name>/        api.py, service.py (Outlook), fake.py, models.py, rules.py, render.py, cli.py, mcp.py
 ```
@@ -14,10 +15,17 @@ src/m365_cli/
 ## Rules
 
 * A feature uses `core` and `backends`. A feature never uses another feature.
-* `api.py` defines the interface. `service.py` (Outlook) and `fake.py` (fake backend) supply it.
+* `api.py` defines the interface. `service.py` (Outlook or Teams) and `fake.py` (fake backend) supply it.
 * `rules.py` has the logic that all backends share. `render.py` makes the short text.
 * `cli.py` and `mcp.py` are thin adapters. They do not contain logic.
 * A backend starts at its first use. A command that does not use Outlook does not start Outlook.
+
+## The Teams backend
+
+The tool starts a separate browser profile with a DevTools port on 127.0.0.1 and opens Teams.
+A page script (`hook.js`) keeps the tokens that the Teams web app gets for your home account.
+`TeamsSession.request()` runs a `fetch()` inside the tab, so the tokens never leave the browser.
+The page script only calls the Teams service addresses from the service map of your account.
 
 ## The fake backend
 
