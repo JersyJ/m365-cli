@@ -72,6 +72,18 @@ def register_mcp(server: MCPServer, get_ctx: ContextProvider) -> None:
         page = api().read(chat, limit=limit, since=parse_since(since) if since else None, older=older)
         return render.messages(page, full=response_format == "detailed")
 
+    @server.tool(title="Teams status", annotations=READ_ONLY, structured_output=False)
+    @tool_errors
+    def teams_status(
+        who: Annotated[str, Field(description="A colleague's name or email.")],
+    ) -> str:
+        """Live Teams presence of a colleague: available, busy, in a meeting, away, out of office, offline.
+
+        Also shows their status note, out-of-office note and directory card (title, department, office).
+        More current than calendar free/busy. An ambiguous name returns an error; use a full name or email.
+        """
+        return render.presence(api().status(who))
+
     @server.tool(title="Draft Teams message", annotations=LOCAL_WRITE, structured_output=False)
     @tool_errors
     def teams_draft(

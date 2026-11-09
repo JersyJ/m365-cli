@@ -10,7 +10,7 @@ from m365_cli.features.teams.mcp import INSTRUCTIONS, register_mcp
 
 FEATURE = Feature(
     name="teams",
-    help="Teams chats and channels: find, read, draft and send.",
+    help="Teams chats, channels and presence: find, read, draft, send, status.",
     build_cli=build_cli,
     register_mcp=register_mcp,
     instructions=INSTRUCTIONS,

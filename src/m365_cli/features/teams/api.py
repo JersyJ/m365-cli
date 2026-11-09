@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING, Protocol
 
 from m365_cli.core.markup import BodyFormat
 from m365_cli.core.paging import Page
-from m365_cli.features.teams.models import Chat, ChatKind, MessagePage, TeamsDraft
+from m365_cli.features.teams.models import Chat, ChatKind, MessagePage, Presence, TeamsDraft
 
 if TYPE_CHECKING:
     from m365_cli.core.context import AppContext
@@ -63,6 +63,14 @@ class TeamsApi(Protocol):
         Raises:
             RateLimitError: The per-minute send limit is reached.
             InvalidInputError: The chat is protected, or `send_at` is in the past.
+        """
+        ...
+
+    def status(self, query: str) -> Presence:
+        """Live Teams presence and directory card of a colleague (by name or email).
+
+        Raises:
+            InvalidInputError: The name matches no one or several people.
         """
         ...
 

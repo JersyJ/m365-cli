@@ -82,6 +82,11 @@ def build_cli(get_ctx: ContextProvider) -> typer.Typer:
         typer.echo(api().send(draft_ref, send_at=parse_when(at) if at else None))
 
     @app.command()
+    def status(who: Annotated[str, typer.Argument(help="Colleague's name or email.")]) -> None:
+        """Live Teams presence and card of a colleague."""
+        typer.echo(render.presence(api().status(who)))
+
+    @app.command()
     def browser() -> None:
         """Start the Teams browser if needed and show its sign-in state (no token values)."""
         typer.echo(json.dumps(get_ctx().teams.status(), indent=1, ensure_ascii=False))

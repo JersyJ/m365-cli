@@ -12,7 +12,15 @@ from m365_cli.core.refs import BackendId
 from m365_cli.core.text import one_line, with_signoff
 from m365_cli.core.timeutil import now
 from m365_cli.features.teams import rules
-from m365_cli.features.teams.models import Chat, ChatKind, Member, MessagePage, TeamsDraft, TeamsMessage
+from m365_cli.features.teams.models import (
+    Chat,
+    ChatKind,
+    Member,
+    MessagePage,
+    Presence,
+    TeamsDraft,
+    TeamsMessage,
+)
 
 if TYPE_CHECKING:
     from m365_cli.core.context import AppContext
@@ -253,3 +261,30 @@ class FakeTeamsService:
         ref = self._refs.put(BackendId("p", message_id, chat_id))
         verb = "Scheduled" if send_at else "Sent"
         return f"{verb} to {draft.chat_title} ({draft.chat_kind}){when}. Message {ref}."
+
+    def status(self, query: str) -> Presence:
+        """See `TeamsApi.status`."""
+        q = query.strip().casefold()
+        people = [*self._state.people, self._state.me]
+        exact = [p for p in people if q in (p.name.casefold(), p.email.casefold())]
+        found = exact or [p for p in people if rules.matches(p.name, query)]
+        if not found:
+            raise InvalidInputError(f"No Teams user matches {query!r}. Try a full name or an email.")
+        if len(found) > 1:
+            names = ", ".join(dict.fromkeys(p.name for p in found))
+            raise InvalidInputError(f"{query!r} matches several people: {names}. Use a full name or email.")
+        person = found[0]
+        status = person.teams_status or "Available"
+        return Presence(
+            name=person.name,
+            mri=_mri(person.name),
+            email=person.email,
+            title=person.title,
+            department=person.department,
+            office=person.office,
+            status=status,
+            available=status == "Available",
+            out_of_office="office" in status.casefold() or bool(person.teams_ooo),
+            ooo_note=person.teams_ooo,
+            message=person.teams_note,
+        )

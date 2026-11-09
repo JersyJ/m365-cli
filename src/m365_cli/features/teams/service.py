@@ -7,7 +7,7 @@ from datetime import datetime
 from functools import cached_property
 from typing import TYPE_CHECKING, Any
 
-from m365_cli.core.errors import BackendUnavailableError, InvalidInputError, NotFoundError
+from m365_cli.core.errors import BackendUnavailableError, InvalidInputError, M365Error, NotFoundError
 from m365_cli.core.markup import BodyFormat
 from m365_cli.core.paging import Page, take_page
 from m365_cli.core.refs import BackendId
@@ -16,7 +16,15 @@ from m365_cli.core.timeutil import now
 from m365_cli.features.teams import rules
 from m365_cli.features.teams.cache import ProfileCache
 from m365_cli.features.teams.drafts import DraftFile
-from m365_cli.features.teams.models import Chat, ChatKind, Member, MessagePage, TeamsDraft, TeamsMessage
+from m365_cli.features.teams.models import (
+    Chat,
+    ChatKind,
+    Member,
+    MessagePage,
+    Presence,
+    TeamsDraft,
+    TeamsMessage,
+)
 
 if TYPE_CHECKING:
     from m365_cli.core.context import AppContext
@@ -24,6 +32,9 @@ if TYPE_CHECKING:
 CHAT = "chatServiceAfd"
 MIDDLE_TIER = "middleTier"
 SPACES = "https://api.spaces.skype.com"
+SUBSTRATE = "substrate"
+SUBSTRATE_AUD = "66a88757-258c-4c72-893c-3e8bed4d6899"
+PRESENCE = "presence"
 _LIST_SIZE = 500
 _MESSAGE_VIEW = "msnp24Equivalent|supportsMessageProperties"
 _PROFILE_PATH = "/beta/users/fetchShortProfile?isMailAddress={}&enableGuest=true&skypeTeamsInfo=true"
@@ -404,6 +415,104 @@ class TeamsService:
         if not conv_id:
             raise BackendUnavailableError("Teams did not create the chat; nothing was sent.")
         return conv_id
+
+    def status(self, query: str) -> Presence:
+        """See `TeamsApi.status`."""
+        card = self._resolve_contact(query)
+        reply = self._session.request(
+            PRESENCE,
+            "/v1/presence/getpresence/",
+            method="POST",
+            body=[{"mri": card["mri"]}],
+            auth=(SPACES,),
+        )
+        rows = reply if isinstance(reply, list) else []
+        raw = next((r.get("presence") or {} for r in rows if r.get("mri") == card["mri"]), {})
+        return Presence(
+            name=card["name"],
+            mri=card["mri"],
+            email=card["email"],
+            title=card["title"],
+            department=card["department"],
+            office=card["office"],
+            **rules.parse_presence(raw),
+        )
+
+    def _resolve_contact(self, query: str) -> dict[str, str]:
+        """Resolve a colleague by name or email to an MRI and directory card via the people directory."""
+        if "@" in query:
+            card = self._card_by_email(query.strip())
+            if card:
+                return card
+        people = self._search_people(query)
+        if not people:
+            raise InvalidInputError(f"No Teams user matches {query!r}. Try a full name or an email.")
+        exact = [p for p in people if query.casefold() in (p["name"].casefold(), p["email"].casefold())]
+        chosen = exact or people
+        if len(chosen) > 1:
+            names = ", ".join(dict.fromkeys(p["name"] for p in chosen))
+            raise InvalidInputError(f"{query!r} matches several people: {names}. Use a full name or email.")
+        return chosen[0]
+
+    def _search_people(self, query: str) -> list[dict[str, str]]:
+        body = {
+            "Scenario": {"Name": "peoplepicker.newChat"},
+            "Cvid": str(uuid.uuid4()),
+            "EntityRequests": [
+                {
+                    "Query": {"QueryString": query, "DisplayQueryString": query},
+                    "EntityType": "People",
+                    "Provenances": ["Mailbox", "Directory"],
+                    "From": 0,
+                    "Size": 10,
+                }
+            ],
+        }
+        try:
+            reply = self._session.request(
+                SUBSTRATE,
+                "/search/api/v1/suggestions?scenario=peoplepicker.newChat",
+                method="POST",
+                body=body,
+                auth=(SUBSTRATE_AUD,),
+            )
+        except M365Error:
+            return []
+        out: list[dict[str, str]] = []
+        for group in (reply or {}).get("Groups") or []:
+            for s in group.get("Suggestions") or []:
+                mri = str(s.get("MRI") or "")
+                if not mri.startswith("8:"):
+                    continue
+                emails = s.get("EmailAddresses") or []
+                out.append(
+                    {
+                        "mri": mri,
+                        "name": str(s.get("DisplayName") or s.get("Text") or ""),
+                        "email": str(emails[0] if emails else s.get("QueryText") or ""),
+                        "title": str(s.get("JobTitle") or ""),
+                        "department": str(s.get("Department") or ""),
+                        "office": str(s.get("OfficeLocation") or s.get("AdditionalOfficeLocation") or ""),
+                    }
+                )
+        return out
+
+    def _card_by_email(self, email: str) -> dict[str, str] | None:
+        reply = self._session.request(
+            MIDDLE_TIER, _PROFILE_PATH.format("true"), method="POST", body=[email], auth=(SPACES,)
+        )
+        values = reply.get("value") if isinstance(reply, dict) else None
+        card = (values or [None])[0]
+        if not isinstance(card, dict) or not card.get("mri"):
+            return None
+        return {
+            "mri": str(card["mri"]),
+            "name": str(card.get("displayName") or card.get("givenName") or ""),
+            "email": str(card.get("email") or card.get("userPrincipalName") or email),
+            "title": str(card.get("jobTitle") or ""),
+            "department": str(card.get("department") or ""),
+            "office": str(card.get("userLocation") or ""),
+        }
 
 
 def _profiles_of(reply: Any) -> list[Member]:

@@ -12,7 +12,7 @@ from m365_cli.core.feature import discover_features
 from m365_cli.mcp_server import build_server
 
 SEND_TOOLS = {"mail_send", "cal_send", "cal_respond", "cal_cancel", "teams_send"}
-TOOL_COUNT = 24
+TOOL_COUNT = 25
 
 
 def call(ctx: AppContext, name: str, **arguments: Any) -> str:

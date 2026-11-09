@@ -147,6 +147,8 @@ def build_state() -> FakeState:
             department="Public Cloud",
             phone="+420 555 000 111",
             manager="Eva Horáková",
+            teams_status="In a meeting",
+            teams_note="Heads-down on the runner migration",
             blocks=[FakeBlock(start=_at(1, 9), end=_at(1, 12), status=BUSY)],
         ),
         FakePerson(
@@ -161,6 +163,8 @@ def build_state() -> FakeState:
             name="Eva Horáková",
             email="eva.horakova@example.com",
             title="Team Manager",
+            teams_status="Out of office",
+            teams_ooo="On leave until Thursday, contact Petr for approvals.",
             blocks=[FakeBlock(start=_at(2, 0), end=_at(4, 0), status=OOO)],
         ),
         FakePerson(name="External Partner", email="partner@other.example", blocks=None),

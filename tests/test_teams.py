@@ -176,3 +176,36 @@ def test_fake_protected_chat_blocks_send(tmp_path: Any) -> None:
         assert not ctx.fake.state.outbox
     finally:
         ctx.close()
+
+
+def test_fake_status_meeting_and_ooo(fake_ctx: AppContext) -> None:
+    jana = call(fake_ctx, "teams_status", who="Jana")
+    assert "Status: In a meeting" in jana
+    assert "Heads-down" in jana and "Cloud Engineer" in jana
+    eva = call(fake_ctx, "teams_status", who="eva.horakova@example.com")
+    assert "Out of office" in eva and "On leave" in eva
+
+
+def test_fake_status_ambiguous_and_unknown(fake_ctx: AppContext) -> None:
+    with pytest.raises(ToolError, match="No Teams user"):
+        asyncio.run(build_server(fake_ctx).call_tool("teams_status", {"who": "Nobody Here"}))
+
+
+def test_presence_label_and_parse() -> None:
+    assert rules.presence_label("Busy", "InAMeeting") == "In a meeting"
+    assert rules.presence_label("Available", "Available") == "Available"
+    assert rules.presence_label("Busy", "InAConferenceCall") == "In a call"
+    assert rules.presence_label("DoNotDisturb", "Presenting") == "Presenting"
+    assert rules.presence_label("Offline", "SomeNewActivity") == "Some new activity"
+    parsed = rules.parse_presence(
+        {
+            "availability": "Busy",
+            "activity": "OutOfOffice",
+            "calendarData": {"isOutOfOffice": True, "outOfOfficeNote": {"message": "<p>Back Mon</p>"}},
+            "note": {"message": "<p>Focusing</p>"},
+            "deviceType": "Mobile",
+        }
+    )
+    assert parsed["status"] == "Out of office" and parsed["out_of_office"] is True
+    assert parsed["ooo_note"] == "Back Mon" and parsed["message"] == "Focusing"
+    assert parsed["available"] is False and parsed["device"] == "Mobile"

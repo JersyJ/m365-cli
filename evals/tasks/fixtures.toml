@@ -156,3 +156,11 @@ prompt = "Send Jana a Teams message saying: I am on it."
 [task.expect]
 teams_draft = { chat = "Jana", body_all = [["on it"]] }
 outbox_empty = true
+
+[[task]]
+id = "teams-status"
+prompt = "Is Jana available on Teams right now, or is she busy?"
+[task.expect]
+tools_used = ["teams_status"]
+answer_all = [["meeting", "busy", "not available", "unavailable", "do not disturb"]]
+outbox_empty = true

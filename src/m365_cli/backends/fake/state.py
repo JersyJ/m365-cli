@@ -92,6 +92,9 @@ class FakePerson(BaseModel):
     phone: str = ""
     mobile: str = ""
     manager: str = ""
+    teams_status: str = "Available"
+    teams_note: str = ""
+    teams_ooo: str = ""
     blocks: list[FakeBlock] | None = Field(default_factory=list)
     calendar: list[FakeEvent] | None = None
 

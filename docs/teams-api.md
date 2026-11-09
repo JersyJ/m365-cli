@@ -29,4 +29,9 @@ These notes are facts that we checked on a real account. Update them when someth
 * `properties.emotions` is a JSON string or a list. The key `follow` is a thread subscription, not a reaction.
 * Mentions: `<span itemtype="http://schema.skype.com/Mention" itemscope itemid="N">` in the content, plus `properties.mentions` (JSON string).
 
+## Presence and people
+
+* Presence: `POST presence.teams.microsoft.com/v1/presence/getpresence/` with `[{"mri": "8:orgid:<guid>"}]` and the `https://api.spaces.skype.com` bearer (not the skype token, which gives 401). Each record has `availability`, `activity` (more specific), `calendarData.isOutOfOffice` / `outOfOfficeNote`, `note.message` (status note) and `lastActiveTime`.
+* Resolve a colleague by email with `fetchShortProfile` (middle-tier, spaces bearer). By name, use substrate people suggestions: `POST substrate.office.com/search/api/v1/suggestions?scenario=peoplepicker.newChat` with the Substrate bearer; each suggestion carries `MRI`, `DisplayName`, `EmailAddresses`, `JobTitle`, `Department`, `OfficeLocation`. The picker excludes yourself.
+
 Sources: our own tests, [msteams-mcp](https://github.com/m0nkmaster/msteams-mcp) and [teams-api](https://github.com/Maxim-Mazurok/teams-api).

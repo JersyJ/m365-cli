@@ -91,3 +91,23 @@ class TeamsDraft(BaseModel):
     reply_to_name: str = ""
     mentions: list[Member] = Field(default_factory=list)
     created: datetime
+
+
+class Presence(BaseModel):
+    """A colleague's live Teams presence plus their directory card."""
+
+    model_config = ConfigDict(frozen=True)
+
+    name: str
+    mri: str
+    email: str = ""
+    title: str = ""
+    department: str = ""
+    office: str = ""
+    status: str
+    available: bool = False
+    out_of_office: bool = False
+    ooo_note: str = ""
+    message: str = ""
+    last_active: datetime | None = None
+    device: str = ""

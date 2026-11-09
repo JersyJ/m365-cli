@@ -468,3 +468,55 @@ def check_body(body: str) -> None:
         raise InvalidInputError("The message is empty.")
     if len(body) > 25_000:
         raise InvalidInputError("The message is too long for Teams (limit about 28 KB); shorten it.")
+
+
+PRESENCE_LABELS = {
+    "available": "Available",
+    "availableidle": "Available (idle)",
+    "away": "Away",
+    "berightback": "Be right back",
+    "busy": "Busy",
+    "busyidle": "Busy (idle)",
+    "donotdisturb": "Do not disturb",
+    "focusing": "Focusing",
+    "inacall": "In a call",
+    "inaconferencecall": "In a call",
+    "inameeting": "In a meeting",
+    "offline": "Offline",
+    "offwork": "Off work",
+    "onthephone": "On the phone",
+    "outofoffice": "Out of office",
+    "presenting": "Presenting",
+    "urgentinterruptionsonly": "Urgent interruptions only",
+}
+
+
+def _camel(text: str) -> str:
+    return re.sub(r"(?<=[a-z])(?=[A-Z])", " ", text).capitalize()
+
+
+def presence_label(availability: str, activity: str) -> str:
+    """Friendly status from the Teams `activity` (specific) or `availability` (fallback)."""
+    for value in (activity, availability):
+        if value:
+            return PRESENCE_LABELS.get(value.lower()) or _camel(value)
+    return "Unknown"
+
+
+def parse_presence(raw: dict[str, Any]) -> dict[str, Any]:
+    """Status fields from a presence record: label, availability flag, out-of-office, note, last active."""
+    availability = str(raw.get("availability") or "")
+    activity = str(raw.get("activity") or "")
+    calendar = raw.get("calendarData") or {}
+    note = raw.get("note") or {}
+    ooo = bool(calendar.get("isOutOfOffice"))
+    ooo_note = calendar.get("outOfOfficeNote") or {}
+    return {
+        "status": presence_label(availability, activity),
+        "available": availability.lower() == "available",
+        "out_of_office": ooo,
+        "ooo_note": html_to_text(str(ooo_note.get("message") or ""))[0] if ooo_note else "",
+        "message": html_to_text(str(note.get("message") or ""))[0] if note else "",
+        "last_active": parse_time(raw.get("lastActiveTime")),
+        "device": str(raw.get("deviceType") or ""),
+    }
