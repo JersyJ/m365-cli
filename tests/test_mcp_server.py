@@ -81,3 +81,75 @@ def test_calendar_and_people_tools(fake_ctx: AppContext) -> None:
         fake_ctx, "cal_find_free_time", attendees=["Jana", "Petr"], date="tomorrow", duration_minutes=60
     )
     assert "Out of office" in call(fake_ctx, "people_lookup", query="Eva", availability_days=5)
+
+
+def _handshake_response(frames: list[dict[str, Any]], init_id: int) -> dict[str, Any]:
+    """Drive the stdio server in-process with the given frames; return the init response."""
+    import json
+
+    import anyio
+    from mcp import types as mcp_types_mod
+    from mcp.server.runner import serve_loop
+    from mcp.shared.message import SessionMessage
+
+    from m365_cli.mcp_server import build_server
+
+    ctx = AppContext(Settings())
+    lowlevel = build_server(ctx)._lowlevel_server
+    init_options = lowlevel.create_initialization_options()
+    result: dict[str, Any] = {}
+
+    async def main() -> None:
+        to_server_send, to_server_recv = anyio.create_memory_object_stream[SessionMessage | Exception](8)
+        from_server_send, from_server_recv = anyio.create_memory_object_stream[SessionMessage](8)
+        for frame in frames:
+            message = mcp_types_mod.jsonrpc_message_adapter.validate_python(frame, by_name=False)
+            await to_server_send.send(SessionMessage(message))
+        await to_server_send.aclose()
+        async with lowlevel.lifespan(lowlevel) as state:
+            with anyio.move_on_after(5):
+                async with anyio.create_task_group() as tg:
+
+                    async def reader() -> None:
+                        async for message in from_server_recv:
+                            payload = json.loads(message.message.model_dump_json(by_alias=True))
+                            if payload.get("id") == init_id:
+                                result.update(payload)
+                                tg.cancel_scope.cancel()
+
+                    tg.start_soon(reader)
+                    await serve_loop(
+                        lowlevel,
+                        to_server_recv,
+                        from_server_send,
+                        lifespan_state=state,
+                        init_options=init_options,
+                    )
+
+    try:
+        anyio.run(main)
+    finally:
+        ctx.close()
+    return result
+
+
+def test_handshake_survives_a_modern_probe_frame() -> None:
+    """A modern-envelope probe before `initialize` must not break the handshake (regression)."""
+    modern_probe = {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "method": "ping",
+        "params": {"_meta": {"io.modelcontextprotocol/protocolVersion": "2026-07-28"}},
+    }
+    initialize = {
+        "jsonrpc": "2.0",
+        "id": 2,
+        "method": "initialize",
+        "params": {
+            "protocolVersion": "2025-11-25",
+            "capabilities": {},
+            "clientInfo": {"name": "t", "version": "1"},
+        },
+    }
+    response = _handshake_response([modern_probe, initialize], init_id=2)
+    assert "result" in response, response

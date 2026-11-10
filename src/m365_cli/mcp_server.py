@@ -28,6 +28,44 @@ def build_server(ctx: AppContext) -> MCPServer:
 def run(ctx: AppContext) -> None:
     """Run the MCP server on stdio until the client disconnects."""
     try:
-        build_server(ctx).run("stdio")
+        _run_stdio_handshake_only(build_server(ctx))
     finally:
         ctx.close()
+
+
+def _run_stdio_handshake_only(server: MCPServer) -> None:
+    """Serve stdio in handshake-only mode, so a client's modern-envelope probe cannot lock it.
+
+    The default `run("stdio")` serves both the legacy initialize handshake and the
+    2026-07-28 per-request-envelope era, and the client's first frame decides which.
+    Copilot CLI sometimes sends a probe frame before `initialize`, which flips the
+    connection to the modern era and then rejects the handshake (JSON-RPC -32022).
+    Clients today still use the handshake, so serving it alone is both safe and stable.
+    Falls back to the default if the internal mcp API changes.
+    """
+    import anyio
+
+    try:
+        from mcp.server.runner import serve_loop
+        from mcp.server.stdio import stdio_server
+    except ImportError:
+        server.run("stdio")
+        return
+
+    lowlevel = server._lowlevel_server
+    init_options = lowlevel.create_initialization_options()
+
+    async def main() -> None:
+        async with (
+            stdio_server() as (read_stream, write_stream),
+            lowlevel.lifespan(lowlevel) as lifespan_state,
+        ):
+            await serve_loop(
+                lowlevel,
+                read_stream,
+                write_stream,
+                lifespan_state=lifespan_state,
+                init_options=init_options,
+            )
+
+    anyio.run(main)
