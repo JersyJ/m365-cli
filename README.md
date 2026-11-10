@@ -121,9 +121,9 @@ For a search across both mail and Teams, the agent combines `mail_find` and `tea
    m365 mail list -n 5
    ```
 
-4. Teams needs no setup. The first Teams command starts Chrome off-screen with its own profile in `%LOCALAPPDATA%\m365-cli\chrome-teams`; on a work-joined PC with the Single Sign On extension it signs in by itself. Only if a sign-in is needed, the tool shows the window and asks you to sign in (once). `m365 teams browser` shows the sign-in state if you want to check it.
+4. Teams (optional): run `m365 teams browser` once to check the sign-in. The tool uses its own Chrome profile in `%LOCALAPPDATA%\m365-cli\chrome-teams`, started off-screen. On a work-joined (Intune) PC the Single Sign On extension is force-installed by policy into every profile, so Teams signs in by itself — the output shows `"skype"` and `"me"` when it is ready. Without that policy the fresh profile has no extension: the tool shows the window, and you sign in once with your work account.
 
-   Keep the browser open if you use Teams often: a cold start takes about 20 seconds.
+   Later Teams commands start the browser by themselves. Keep it open if you use Teams often: a cold start takes about 20 seconds.
 
 5. Connect your agent — see the next sections.
 
