@@ -15,7 +15,9 @@ from m365_cli.features.teams import rules
 from m365_cli.features.teams.models import (
     Chat,
     ChatKind,
+    Digest,
     Member,
+    Mention,
     MessagePage,
     Presence,
     TeamsDraft,
@@ -296,6 +298,34 @@ class FakeTeamsService:
             fc = next(x for x in state.teams_chats if x.id == c.id)
             fc.unread = False
         return f"Marked {c.title} read."
+
+    def digest(self, *, unread_only: bool = True, limit: int = 15) -> Digest:
+        """See `TeamsApi.digest`."""
+        me_first = self._state.me.name.split()[0].casefold()
+        unread = [self._chat(c) for c in self._state.teams_chats if c.unread and not c.deleted][:limit]
+        mentions: list[Mention] = []
+        for c in self._state.teams_chats:
+            if c.deleted:
+                continue
+            for m in c.messages:
+                names = [n.casefold() for n in rules.html_to_text(m.html)[1]]
+                if me_first not in names:
+                    continue
+                mentions.append(
+                    Mention(
+                        ref=self._refs.put(BackendId("p", m.id, c.id)),
+                        who=m.sender,
+                        where=c.title,
+                        kind="mentioned you",
+                        preview=one_line(rules.html_to_text(m.html)[0], 160),
+                        time=m.time,
+                        unread=c.unread,
+                    )
+                )
+        if unread_only:
+            mentions = [x for x in mentions if x.unread]
+        mentions = sorted(mentions, key=lambda x: x.time or datetime.min, reverse=True)[:limit]
+        return Digest(mentions=mentions, unread=unread)
 
     def update_message(
         self,

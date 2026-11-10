@@ -50,6 +50,18 @@ def register_mcp(server: MCPServer, get_ctx: ContextProvider) -> None:
             api().chats(query=query, kind=kind, unread_only=unread_only, offset=offset, limit=limit)
         )
 
+    @server.tool(title="Teams digest", annotations=READ_ONLY, structured_output=False)
+    @tool_errors
+    def teams_digest(
+        unread_only: Annotated[bool, Field(description="Only unread mentions (default true).")] = True,
+        limit: Annotated[int, Field(ge=1, le=50, description="Max items per section.")] = 15,
+    ) -> str:
+        """What needs you on Teams: @mentions and replies to you, plus unread chats and channels.
+
+        Use it for 'what is new on Teams'. Each mention has a ref for teams_read or teams_draft(reply_to=…).
+        """
+        return render.digest(api().digest(unread_only=unread_only, limit=limit))
+
     @server.tool(title="Read Teams chat", annotations=READ_ONLY, structured_output=False)
     @tool_errors
     def teams_read(

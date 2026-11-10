@@ -243,3 +243,43 @@ def test_reaction_key() -> None:
     assert rules.reaction_key("thumbsup") == "like"
     assert rules.reaction_key("Heart") == "heart"
     assert rules.reaction_key("1f525_fire") == "1f525_fire"
+
+
+def test_fake_digest_mentions_and_unread(fake_ctx: AppContext) -> None:
+    out = call(fake_ctx, "teams_digest")
+    assert "Mentions & replies to you" in out
+    assert "Eva Horáková mentioned you in Platform squad" in out
+    assert "Unread conversations" in out and "Jana Nováková" in out
+    assert "<<<UNTRUSTED teams digest" in out
+    ref = next(line.split("]")[0].lstrip("[") for line in out.splitlines() if "mentioned you" in line)
+    assert ref.startswith("p:")
+    preview = call(fake_ctx, "teams_draft", reply_to=ref, body="On it.")
+    assert "NOT SENT" in preview
+
+
+def test_parse_activity() -> None:
+    import json as _json
+
+    msg = {
+        "content": "<p>hi</p>",
+        "messagetype": "RichText/Html",
+        "properties": {
+            "isread": "false",
+            "activity": _json.dumps(
+                {
+                    "activityType": "mention",
+                    "sourceThreadId": "19:abc@thread.tacv2",
+                    "sourceMessageId": "1790000000000",
+                    "sourceUserImDisplayName": "Petr Svoboda",
+                    "sourceThreadTopic": "Platform squad",
+                    "messagePreview": "please review",
+                    "activityTimestamp": 1790000000000,
+                }
+            ),
+        },
+    }
+    item = rules.parse_activity(msg)
+    assert item is not None
+    assert item["who"] == "Petr Svoboda" and item["kind"] == "mentioned you"
+    assert item["thread"] == "19:abc@thread.tacv2" and item["unread"] is True
+    assert rules.parse_activity({"properties": {}}) is None

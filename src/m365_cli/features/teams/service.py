@@ -19,7 +19,9 @@ from m365_cli.features.teams.drafts import DraftFile
 from m365_cli.features.teams.models import (
     Chat,
     ChatKind,
+    Digest,
     Member,
+    Mention,
     MessagePage,
     Presence,
     TeamsDraft,
@@ -36,6 +38,7 @@ SUBSTRATE = "substrate"
 SUBSTRATE_AUD = "66a88757-258c-4c72-893c-3e8bed4d6899"
 PRESENCE = "presence"
 _LIST_SIZE = 500
+_MENTIONS = "48:mentions"
 _MESSAGE_VIEW = "msnp24Equivalent|supportsMessageProperties"
 _PROFILE_PATH = "/beta/users/fetchShortProfile?isMailAddress={}&enableGuest=true&skypeTeamsInfo=true"
 
@@ -459,6 +462,38 @@ class TeamsService:
         reply = self._session.request(CHAT, path) or {}
         messages = reply.get("messages") or []
         return str(messages[0].get("id")) if messages else ""
+
+    def digest(self, *, unread_only: bool = True, limit: int = 15) -> Digest:
+        """See `TeamsApi.digest`."""
+        unread = [c for c in self._all_chats() if c.unread][:limit]
+        path = (
+            f"/v1/users/ME/conversations/{_MENTIONS}/messages?view={_MESSAGE_VIEW}"
+            f"&pageSize={max(limit * 2, 20)}&startTime=1"
+        )
+        try:
+            reply = self._session.request(CHAT, path) or {}
+        except M365Error:
+            reply = {}
+        mentions: list[Mention] = []
+        for raw in reply.get("messages") or []:
+            item = rules.parse_activity(raw)
+            if item is None or (unread_only and not item["unread"]):
+                continue
+            ref = self._refs.put(BackendId("p", item["message_id"], item["thread"]))
+            mentions.append(
+                Mention(
+                    ref=ref,
+                    who=one_line(item["who"], 50),
+                    where=one_line(item["where"], 50),
+                    kind=item["kind"],
+                    preview=item["preview"],
+                    time=item["time"],
+                    unread=item["unread"],
+                )
+            )
+            if len(mentions) >= limit:
+                break
+        return Digest(mentions=mentions, unread=unread)
 
     def update_message(
         self,

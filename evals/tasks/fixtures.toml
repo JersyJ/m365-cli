@@ -164,3 +164,11 @@ prompt = "Is Jana available on Teams right now, or is she busy?"
 tools_used = ["teams_status"]
 answer_all = [["meeting", "busy", "not available", "unavailable", "do not disturb"]]
 outbox_empty = true
+
+[[task]]
+id = "teams-digest"
+prompt = "What needs my attention on Teams - did anyone mention me?"
+[task.expect]
+tools_used = ["teams_digest"]
+answer_all = [["eva", "platform", "change request"]]
+outbox_empty = true

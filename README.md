@@ -55,6 +55,7 @@ A reply to a mail in another mailbox goes out from that mailbox.
 |---|---|---|
 | `teams_find` | `m365 teams list` | Lists chats, group chats, meeting chats and channels, newest activity first. Filters: name, kind, unread. |
 | `teams_read` | `m365 teams read` | Shows the newest messages of a chat: sender, time, text, quoted message, reactions, files. Pages with `older`. |
+| `teams_digest` | `m365 teams digest` | What needs you: @mentions and replies to you, plus unread chats and channels. Use it for "what is new". |
 | `teams_draft` | `m365 teams write` | Prepares a message, a reply (with quote) or a first message to a person. The body is Markdown. `@[Name]` mentions a chat member. |
 | `teams_send` | `m365 teams send` | Sends a draft now, or at a later time (`send_at`). |
 | `teams_status` | `m365 teams status` | Shows a colleague's live Teams presence (available, busy, in a meeting, away, out of office, offline), status note and card. |

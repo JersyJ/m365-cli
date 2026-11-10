@@ -41,6 +41,14 @@ def build_cli(get_ctx: ContextProvider) -> typer.Typer:
         typer.echo(render.chats(page))
 
     @app.command()
+    def digest(
+        all_: Annotated[bool, typer.Option("--all", help="Include read mentions too.")] = False,
+        limit: Annotated[int, typer.Option("--limit", "-n")] = 15,
+    ) -> None:
+        """What needs you on Teams: mentions/replies and unread conversations."""
+        typer.echo(render.digest(api().digest(unread_only=not all_, limit=limit)))
+
+    @app.command()
     def read(
         chat: ChatArg,
         limit: Annotated[int, typer.Option("--limit", "-n")] = 20,

@@ -111,3 +111,26 @@ class Presence(BaseModel):
     message: str = ""
     last_active: datetime | None = None
     device: str = ""
+
+
+class Mention(BaseModel):
+    """An @mention, reply or reaction directed at you, from the Teams activity feed."""
+
+    model_config = ConfigDict(frozen=True)
+
+    ref: str
+    who: str
+    where: str
+    kind: str
+    preview: str = ""
+    time: datetime | None = None
+    unread: bool = True
+
+
+class Digest(BaseModel):
+    """What needs your attention on Teams: mentions/replies to you, and unread conversations."""
+
+    model_config = ConfigDict(frozen=True)
+
+    mentions: list[Mention]
+    unread: list[Chat]

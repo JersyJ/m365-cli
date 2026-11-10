@@ -558,3 +558,60 @@ def edit_payload(content_html: str, message_id: str, display_name: str) -> dict[
 def consumption_horizon(message_id: str) -> str:
     """A read-marker value ('<message id>;<now ms>;<client id>') up to and including `message_id`."""
     return f"{message_id};{int(now().timestamp() * 1000)};{client_message_id()}"
+
+
+ACTIVITY_LABELS = {
+    "mention": "mentioned you",
+    "reply": "replied",
+    "reaction": "reacted",
+    "like": "reacted",
+    "channelusermention": "mentioned you",
+    "teammention": "mentioned the team",
+    "followedchannelmessage": "posted",
+}
+
+
+def _activity_label(activity_type: str) -> str:
+    if activity_type in ACTIVITY_LABELS:
+        return ACTIVITY_LABELS[activity_type]
+    if "mention" in activity_type:
+        return "mentioned you"
+    if "reply" in activity_type:
+        return "replied"
+    if "reaction" in activity_type or "like" in activity_type:
+        return "reacted"
+    return _camel(activity_type) if activity_type else "activity"
+
+
+def parse_activity(message: dict[str, Any]) -> dict[str, Any] | None:
+    """Fields of one activity-feed message (`properties.activity`), or None when it cannot be read.
+
+    Returns who acted, the source thread/message ids, a friendly kind, a preview, the time and read flag.
+    """
+    props = message.get("properties") or {}
+    raw = props.get("activity")
+    if isinstance(raw, str):
+        try:
+            raw = json.loads(raw)
+        except ValueError:
+            return None
+    if not isinstance(raw, dict):
+        return None
+    source_thread = str(raw.get("sourceThreadId") or "")
+    source_message = str(raw.get("sourceMessageId") or "")
+    if not source_thread or not source_message:
+        return None
+    activity_type = str(raw.get("activityType") or "").lower()
+    preview = str(raw.get("messagePreview") or "")
+    if not preview:
+        preview = message_text(message)[0]
+    return {
+        "thread": source_thread,
+        "message_id": source_message,
+        "who": str(raw.get("sourceUserImDisplayName") or ""),
+        "where": str(raw.get("sourceThreadTopic") or raw.get("sourceThreadRosterName") or "a chat"),
+        "kind": _activity_label(activity_type),
+        "preview": one_line(preview, 160),
+        "time": parse_time(raw.get("activityTimestamp") or message.get("originalarrivaltime")),
+        "unread": str(props.get("isread")).lower() != "true",
+    }

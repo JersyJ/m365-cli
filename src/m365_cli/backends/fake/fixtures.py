@@ -94,6 +94,7 @@ def _teams_chats() -> list[FakeChat]:
             kind="group",
             title="Platform squad",
             members=["Alex Tester", "Jana Nováková", "Petr Svoboda", "Eva Horáková"],
+            unread=True,
             messages=[
                 msg("2001", "Petr Svoboda", 30, "<p>Release 2.4 goes out on Thursday.</p>"),
                 msg(

@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING, Protocol
 
 from m365_cli.core.markup import BodyFormat
 from m365_cli.core.paging import Page
-from m365_cli.features.teams.models import Chat, ChatKind, MessagePage, Presence, TeamsDraft
+from m365_cli.features.teams.models import Chat, ChatKind, Digest, MessagePage, Presence, TeamsDraft
 
 if TYPE_CHECKING:
     from m365_cli.core.context import AppContext
@@ -76,6 +76,10 @@ class TeamsApi(Protocol):
 
     def mark_read(self, chat: str) -> str:
         """Mark a chat read up to its newest message; returns a short confirmation."""
+        ...
+
+    def digest(self, *, unread_only: bool = True, limit: int = 15) -> Digest:
+        """What needs you on Teams: @mentions/replies to you, plus unread conversations."""
         ...
 
     def update_message(
