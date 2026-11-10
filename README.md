@@ -209,3 +209,7 @@ teams_port = 9222
 
 * [Architecture and code rules](docs/architecture.md)
 * [Teams web API notes](docs/teams-api.md)
+
+## Disclaimer
+
+This is an unofficial tool, not affiliated with or endorsed by Microsoft. It automates the products you are already signed in to, with your own account, on your own computer: classic Outlook through its public COM API, and the Teams web app through its own web requests. It accesses only data you can already see in those apps, it does not bypass any protection (rights-protected mail stays unreadable), and your sign-in tokens never leave the browser. The Teams web interface is not a supported API and can change at any time — the tool can break without notice. Check the IT policy of your organization before you use it at work. Use at your own risk.
