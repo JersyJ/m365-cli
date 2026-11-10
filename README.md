@@ -56,6 +56,7 @@ A reply to a mail in another mailbox goes out from that mailbox.
 | `teams_find` | `m365 teams list` | Lists chats, group chats, meeting chats and channels, newest activity first. Filters: name, kind, unread. |
 | `teams_read` | `m365 teams read` | Shows the newest messages of a chat: sender, time, text, quoted message, reactions, files. Pages with `older`. |
 | `teams_digest` | `m365 teams digest` | What needs you: @mentions and replies to you, plus unread chats and channels. Use it for "what is new". |
+| `teams_search` | `m365 teams search` | Full-text search across your Teams chats and channels. Each hit links to its conversation. |
 | `teams_draft` | `m365 teams write` | Prepares a message, a reply (with quote) or a first message to a person. The body is Markdown. `@[Name]` mentions a chat member. |
 | `teams_send` | `m365 teams send` | Sends a draft now, or at a later time (`send_at`). |
 | `teams_status` | `m365 teams status` | Shows a colleague's live Teams presence (available, busy, in a meeting, away, out of office, offline), status note and card. |
@@ -63,6 +64,7 @@ A reply to a mail in another mailbox goes out from that mailbox.
 | `teams_update` | `m365 teams react` / `edit` / `delete` | Reacts to a message, or edits/deletes one of your own. Visible to others, so it needs approval. |
 
 A chat can be a ref (`c:…`) or a name: the chat title, or the other person of a 1:1 chat.
+For a search across both mail and Teams, the agent combines `mail_find` and `teams_search`.
 
 ### Limits
 

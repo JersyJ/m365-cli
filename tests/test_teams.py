@@ -283,3 +283,18 @@ def test_parse_activity() -> None:
     assert item["who"] == "Petr Svoboda" and item["kind"] == "mentioned you"
     assert item["thread"] == "19:abc@thread.tacv2" and item["unread"] is True
     assert rules.parse_activity({"properties": {}}) is None
+
+
+def test_fake_search(fake_ctx: AppContext) -> None:
+    out = call(fake_ctx, "teams_search", query="NAT gateway")
+    assert "destroy" in out and "<<<UNTRUSTED teams search" in out
+    ref = next(line.split()[0] for line in out.splitlines() if line.startswith("c:"))
+    assert "Terraform" in call(fake_ctx, "teams_read", chat=ref)
+    assert "No Teams messages found" in call(fake_ctx, "teams_search", query="zzznomatch")
+
+
+def test_search_kind_and_sender() -> None:
+    assert rules.search_kind("Meeting") == "meeting"
+    assert rules.search_kind("Channel") == "channel"
+    assert rules.sender_name({"EmailAddress": {"Name": "Jana N", "Address": "j@x.com"}}) == "Jana N"
+    assert rules.sender_name("Petr") == "Petr"

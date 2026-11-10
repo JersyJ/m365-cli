@@ -96,6 +96,19 @@ def register_mcp(server: MCPServer, get_ctx: ContextProvider) -> None:
         """
         return render.presence(api().status(who))
 
+    @server.tool(title="Search Teams", annotations=READ_ONLY, structured_output=False)
+    @tool_errors
+    def teams_search(
+        query: Annotated[str, Field(description="Words to search for across your Teams chats and channels.")],
+        offset: Annotated[int, Field(ge=0, description="Skip this many hits (paging).")] = 0,
+        limit: Annotated[int, Field(ge=1, le=50, description="Number of hits.")] = 15,
+    ) -> str:
+        """Full-text search of your Teams messages. Each hit links to its chat; open it with teams_read.
+
+        For mail, use mail_find; combine both for a cross-source search.
+        """
+        return render.search(api().search(query, offset=offset, limit=limit))
+
     @server.tool(title="Draft Teams message", annotations=LOCAL_WRITE, structured_output=False)
     @tool_errors
     def teams_draft(

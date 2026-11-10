@@ -3,7 +3,15 @@ from __future__ import annotations
 from m365_cli.core.paging import Page, more_hint
 from m365_cli.core.text import one_line, truncate, untrusted
 from m365_cli.core.timeutil import fmt
-from m365_cli.features.teams.models import Chat, Digest, MessagePage, Presence, TeamsDraft, TeamsMessage
+from m365_cli.features.teams.models import (
+    Chat,
+    Digest,
+    MessagePage,
+    Presence,
+    SearchHit,
+    TeamsDraft,
+    TeamsMessage,
+)
 
 _MESSAGE_LIMIT = 2000
 
@@ -120,3 +128,17 @@ def digest(d: Digest) -> str:
         return "Nothing unread and no new mentions on Teams."
     wrapped = untrusted("teams digest", "\n".join(body))
     return "Teams - what needs you:\n" + wrapped + "\n[Reply to a mention with teams_draft(reply_to=<ref>).]"
+
+
+def search(page: Page[SearchHit]) -> str:
+    """Search hits, newest first, each with a chat ref to open with teams_read."""
+    if not page.items:
+        return "No Teams messages found." if not page.offset else "No more Teams results."
+    lines = [f"Teams search ({len(page.items)} shown), newest first:"]
+    for h in page.items:
+        where = f" in {h.where}" if h.where else ""
+        lines.append(f"{h.chat_ref} {h.kind:<7} {h.who}{where} ({fmt(h.time)}): {h.preview}")
+    body = untrusted("teams search", "\n".join(lines))
+    hint = more_hint(page)
+    tail = "\n[Open a result with teams_read(chat=<ref>).]"
+    return body + (("\n" + hint) if hint else "") + tail

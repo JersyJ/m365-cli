@@ -134,3 +134,16 @@ class Digest(BaseModel):
 
     mentions: list[Mention]
     unread: list[Chat]
+
+
+class SearchHit(BaseModel):
+    """One message matching a search, linked to its conversation for reading or replying."""
+
+    model_config = ConfigDict(frozen=True)
+
+    chat_ref: str
+    kind: str
+    who: str
+    where: str
+    preview: str = ""
+    time: datetime | None = None

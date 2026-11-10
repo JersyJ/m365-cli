@@ -615,3 +615,25 @@ def parse_activity(message: dict[str, Any]) -> dict[str, Any] | None:
         "time": parse_time(raw.get("activityTimestamp") or message.get("originalarrivaltime")),
         "unread": str(props.get("isread")).lower() != "true",
     }
+
+
+SEARCH_KINDS = {
+    "chat": "chat",
+    "meeting": "meeting",
+    "channel": "channel",
+    "topic": "channel",
+    "space": "channel",
+}
+
+
+def search_kind(thread_type: str) -> str:
+    """Friendly kind for a search hit's ThreadType."""
+    return SEARCH_KINDS.get(thread_type.lower(), thread_type.lower() or "chat")
+
+
+def sender_name(value: Any) -> str:
+    """Display name from a search hit's `From` (an object with EmailAddress, or a plain string)."""
+    if isinstance(value, dict):
+        email = value.get("EmailAddress") or {}
+        return str(email.get("Name") or email.get("Address") or value.get("DisplayName") or "")
+    return str(value or "")

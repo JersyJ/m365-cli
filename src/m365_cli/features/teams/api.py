@@ -5,7 +5,15 @@ from typing import TYPE_CHECKING, Protocol
 
 from m365_cli.core.markup import BodyFormat
 from m365_cli.core.paging import Page
-from m365_cli.features.teams.models import Chat, ChatKind, Digest, MessagePage, Presence, TeamsDraft
+from m365_cli.features.teams.models import (
+    Chat,
+    ChatKind,
+    Digest,
+    MessagePage,
+    Presence,
+    SearchHit,
+    TeamsDraft,
+)
 
 if TYPE_CHECKING:
     from m365_cli.core.context import AppContext
@@ -80,6 +88,10 @@ class TeamsApi(Protocol):
 
     def digest(self, *, unread_only: bool = True, limit: int = 15) -> Digest:
         """What needs you on Teams: @mentions/replies to you, plus unread conversations."""
+        ...
+
+    def search(self, query: str, *, offset: int = 0, limit: int = 15) -> Page[SearchHit]:
+        """Full-text search across your Teams chats and channels; each hit links to its conversation."""
         ...
 
     def update_message(

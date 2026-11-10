@@ -20,6 +20,7 @@ from m365_cli.features.teams.models import (
     Mention,
     MessagePage,
     Presence,
+    SearchHit,
     TeamsDraft,
     TeamsMessage,
 )
@@ -326,6 +327,31 @@ class FakeTeamsService:
             mentions = [x for x in mentions if x.unread]
         mentions = sorted(mentions, key=lambda x: x.time or datetime.min, reverse=True)[:limit]
         return Digest(mentions=mentions, unread=unread)
+
+    def search(self, query: str, *, offset: int = 0, limit: int = 15) -> Page[SearchHit]:
+        """See `TeamsApi.search`."""
+        if not query.strip():
+            raise InvalidInputError("Give something to search for.")
+        hits: list[SearchHit] = []
+        for c in self._state.teams_chats:
+            if c.deleted:
+                continue
+            for m in c.messages:
+                text = rules.html_to_text(m.html)[0]
+                if not m.deleted and rules.matches(text, query):
+                    hits.append(
+                        SearchHit(
+                            chat_ref=self._refs.put(BackendId("c", c.id)),
+                            kind=c.kind,
+                            who=m.sender,
+                            where=c.title if c.kind == "channel" else "",
+                            preview=one_line(text, 160),
+                            time=m.time,
+                        )
+                    )
+        hits.sort(key=lambda h: h.time or datetime.min, reverse=True)
+        items, more = take_page(hits, offset=offset, limit=limit)
+        return Page(items=items, offset=offset, has_more=more)
 
     def update_message(
         self,

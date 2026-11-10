@@ -172,3 +172,11 @@ prompt = "What needs my attention on Teams - did anyone mention me?"
 tools_used = ["teams_digest"]
 answer_all = [["eva", "platform", "change request"]]
 outbox_empty = true
+
+[[task]]
+id = "teams-search"
+prompt = "Search my Teams messages for anything about the NAT gateway."
+[task.expect]
+tools_used = ["teams_search"]
+answer_all = [["nat", "destroy", "gateway"]]
+outbox_empty = true

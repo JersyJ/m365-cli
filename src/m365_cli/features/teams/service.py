@@ -24,6 +24,7 @@ from m365_cli.features.teams.models import (
     Mention,
     MessagePage,
     Presence,
+    SearchHit,
     TeamsDraft,
     TeamsMessage,
 )
@@ -36,6 +37,7 @@ MIDDLE_TIER = "middleTier"
 SPACES = "https://api.spaces.skype.com"
 SUBSTRATE = "substrate"
 SUBSTRATE_AUD = "66a88757-258c-4c72-893c-3e8bed4d6899"
+SUBSTRATE_OFFICE = "https://substrate.office.com"
 PRESENCE = "presence"
 _LIST_SIZE = 500
 _MENTIONS = "48:mentions"
@@ -494,6 +496,54 @@ class TeamsService:
             if len(mentions) >= limit:
                 break
         return Digest(mentions=mentions, unread=unread)
+
+    def search(self, query: str, *, offset: int = 0, limit: int = 15) -> Page[SearchHit]:
+        """See `TeamsApi.search`."""
+        if not query.strip():
+            raise InvalidInputError("Give something to search for.")
+        body = {
+            "Scenario": {"Name": "powerbar"},
+            "Cvid": str(uuid.uuid4()),
+            "EntityRequests": [
+                {
+                    "EntityType": "Message",
+                    "ContentSources": ["Teams"],
+                    "Provenances": ["Teams"],
+                    "Query": {"QueryString": query, "DisplayQueryString": query},
+                    "From": offset,
+                    "Size": min(max(limit, 1), 50) + 1,
+                }
+            ],
+        }
+        try:
+            reply = self._session.request(
+                SUBSTRATE,
+                "/search/api/v1/suggestions?scenario=powerbar",
+                method="POST",
+                body=body,
+                auth=(SUBSTRATE_OFFICE,),
+            )
+        except M365Error:
+            return Page(items=[], offset=offset, has_more=False)
+        hits: list[SearchHit] = []
+        for group in (reply or {}).get("Groups") or []:
+            for s in group.get("Suggestions") or []:
+                thread = str(s.get("ClientThreadId") or "")
+                if not thread.startswith("19:") and not thread.startswith("48:"):
+                    continue
+                team, channel = str(s.get("Team") or ""), str(s.get("Channel") or "")
+                where = f"{team} / {channel}" if team and channel else team or channel
+                hits.append(
+                    SearchHit(
+                        chat_ref=self._refs.put(BackendId("c", thread)),
+                        kind=rules.search_kind(str(s.get("ThreadType") or "")),
+                        who=one_line(rules.sender_name(s.get("From")), 50),
+                        where=one_line(where, 50),
+                        preview=one_line(str(s.get("Preview") or ""), 160),
+                        time=rules.parse_time(s.get("DateTimeSent")),
+                    )
+                )
+        return Page(items=hits[:limit], offset=offset, has_more=len(hits) > limit)
 
     def update_message(
         self,

@@ -61,6 +61,15 @@ def build_cli(get_ctx: ContextProvider) -> typer.Typer:
         typer.echo(render.messages(page, full=full))
 
     @app.command()
+    def search(
+        query: Annotated[str, typer.Argument(help="Words to search for.")],
+        limit: Annotated[int, typer.Option("--limit", "-n")] = 15,
+        offset: Annotated[int, typer.Option("--offset")] = 0,
+    ) -> None:
+        """Search your Teams messages."""
+        typer.echo(render.search(api().search(query, offset=offset, limit=limit)))
+
+    @app.command()
     def write(
         body: Annotated[str, typer.Argument(help="Message (Markdown); '-' reads stdin; '@[Name]' mentions.")],
         chat: Annotated[str | None, typer.Option("--chat", "-c", help="Chat ref or name.")] = None,
