@@ -117,9 +117,11 @@ The command is `m365`. In WSL, call `/mnt/c/Users/<you>/src/m365-cli/.venv/Scrip
 
 After this, the tool starts the browser off-screen whenever it needs Teams. Keep the browser open if you use Teams often: a cold start takes about 20 seconds.
 
-### Update
+### Update (source install)
 
-Run `bash scripts/update.sh` from WSL (it does `git pull` + `uv sync`). Source changes apply when you restart Claude Code. If dependencies changed, close Claude Code first, because it locks the CLI binary. The private repo is pulled with your SSH key; if git asks for a passphrase, run `ssh-add ~/.ssh/personal` first.
+If you installed from the Git checkout (the editable `uv sync` install above), run `bash scripts/update.sh` from WSL. It does `git pull` + `uv sync`. Source changes apply when you restart Claude Code. If dependencies changed, close Claude Code first, because it locks the CLI binary. The private repo is pulled with your SSH key; if git asks for a passphrase, run `ssh-add ~/.ssh/personal` first.
+
+(If you installed from a wheel with `uv tool install`, update it by reinstalling a new wheel instead — see below.)
 
 ### Send it to a colleague
 
@@ -127,7 +129,9 @@ Your colleague needs the same basics: classic Outlook signed in, and (for Teams)
 
 1. You: `uv build` — this writes `dist/m365_cli-0.1.0-py3-none-any.whl`. Send them the `.whl`.
 2. Them: install uv once (`winget install astral-sh.uv`), then `uv tool install m365_cli-0.1.0-py3-none-any.whl`. This puts the `m365` command on their PATH (`%USERPROFILE%\.local\bin\m365.exe`) with all dependencies.
-3. Them: register it with Claude Code (see below), using that path. For a new wheel later, `uv tool install --reinstall …`.
+3. Them: register it with Claude Code (see below), using that path.
+
+To update them later: you `uv build` a new wheel, send it, and they run `uv tool install --reinstall m365_cli-0.1.0-py3-none-any.whl`. (`uv tool upgrade` does not work for a wheel install — a wheel has no source to upgrade from, so reinstalling the new wheel is the way. The `scripts/update.sh` script is only for the Git/source install.)
 
 A wheel is better here than a single `.exe` (PyInstaller): it is small, needs no code signing, and is not flagged or blocked by Defender/SmartScreen on a managed device, which an unsigned `.exe` often is. The one thing they install is uv.
 
