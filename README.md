@@ -98,23 +98,30 @@ For a search across both mail and Teams, the agent combines `mail_find` and `tea
 * **Classic Outlook**, signed in. It can run in the background. Used for mail, calendar and people.
 * **Google Chrome** ([google.com/chrome](https://www.google.com/chrome/)), only if you want Teams. The tool drives Teams in a separate Chrome profile.
 * The **Microsoft Single Sign On** Chrome extension ([web store](https://chromewebstore.google.com/detail/microsoft-single-sign-on/ppnbnpeolgkicgegkbkbjmhlideopiji)), only for Teams. On a work-joined (Entra/Intune) PC it is usually installed for you, and it signs Teams in automatically with your Windows login — no password prompt.
-* **uv** (the Python toolchain): `winget install astral-sh.uv`
-* **GitHub CLI** signed in (`winget install GitHub.cli`, then `gh auth login`) — needed only while this repo is private.
 
-### Install
+### First-time install
 
-Download the latest release wheel and install it as a tool:
+1. Install **uv** and the **GitHub CLI** (the GitHub CLI is needed only while this repo is private):
 
-```powershell
-gh release download --repo JersyJ/m365-cli --pattern '*.whl'
-uv tool install m365_cli-*.whl
-```
+   ```powershell
+   winget install astral-sh.uv GitHub.cli
+   gh auth login
+   ```
 
-This puts the `m365` command on your PATH (`%USERPROFILE%\.local\bin\m365.exe`) with all dependencies. Test it:
+2. Download the latest release and install it as a tool. This puts the `m365` command on your PATH (`%USERPROFILE%\.local\bin\m365.exe`) with all dependencies:
 
-```powershell
-m365 mail list -n 5
-```
+   ```powershell
+   gh release download --repo JersyJ/m365-cli --pattern '*.whl'
+   uv tool install m365_cli-*.whl
+   ```
+
+3. Sign in to classic Outlook (once), then test it:
+
+   ```powershell
+   m365 mail list -n 5
+   ```
+
+4. Turn on Teams if you want it, and connect your agent — the next sections.
 
 ### Update
 
