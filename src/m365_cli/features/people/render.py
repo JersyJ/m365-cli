@@ -21,12 +21,11 @@ def person(p: Person, availability: Availability | None = None) -> str:
     if p.manager:
         lines.append(f"Manager: {p.manager}")
     if availability is not None:
-        status = availability.now
-        if availability.current_until and status != "free":
-            status += f" until {fmt(availability.current_until)}"
-        lines.append(f"Now: {status}")
         if availability.out_of_office:
             lines.append("Out of office: " + _ranges(availability.out_of_office))
         if availability.busy_today:
             lines.append("Busy today: " + _ranges(availability.busy_today))
+        if not availability.out_of_office and not availability.busy_today:
+            lines.append("No out-of-office or busy periods found.")
+        lines.append("(Calendar free/busy; for live status use teams_status.)")
     return "\n".join(lines)
