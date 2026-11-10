@@ -46,7 +46,8 @@ def source_checkout() -> Path | None:
     return root if (root / ".git").is_dir() else None
 
 
-def _token() -> str:
+def _token() -> str | None:
+    """A GitHub token when one is available; None is fine for a public repo."""
     for name in ("GH_TOKEN", "GITHUB_TOKEN"):
         if value := os.environ.get(name):
             return value
@@ -54,25 +55,23 @@ def _token() -> str:
         result = subprocess.run([gh, "auth", "token"], capture_output=True, text=True, check=False)
         if result.returncode == 0 and result.stdout.strip():
             return result.stdout.strip()
-    raise M365Error(
-        "No GitHub token: the repo is private. Install GitHub CLI and run `gh auth login`, "
-        "or set GH_TOKEN to a token with read access to " + REPO + "."
-    )
+    return None
 
 
-def _api(url: str, token: str, accept: str) -> bytes:
-    request = urllib.request.Request(
-        url,
-        headers={
-            "Authorization": f"Bearer {token}",
-            "Accept": accept,
-            "X-GitHub-Api-Version": "2022-11-28",
-        },
-    )
+def _api(url: str, token: str | None, accept: str) -> bytes:
+    headers = {"Accept": accept, "X-GitHub-Api-Version": "2022-11-28"}
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    request = urllib.request.Request(url, headers=headers)
     try:
         with urllib.request.urlopen(request, timeout=60) as response:
             return response.read()
     except urllib.error.HTTPError as exc:
+        if exc.code == 404 and not token:
+            raise M365Error(
+                f"GitHub answered 404 for {REPO}: the repo is private, so a token is needed. "
+                "Install GitHub CLI and run `gh auth login`, or set GH_TOKEN."
+            ) from None
         if exc.code == 404:
             raise M365Error(
                 f"No release found on {REPO} (or the token has no access to the repo)."
@@ -107,7 +106,7 @@ def self_update(echo: Callable[[str], None]) -> None:
     """
     if repo := source_checkout():
         raise M365Error(
-            f"This is a source install at {repo}. Update it from WSL with: bash scripts/update.sh"
+            f"This is a source install at {repo}. Update it with: git pull, then uv sync."
         )
     uv = _find_uv()
     if not uv:

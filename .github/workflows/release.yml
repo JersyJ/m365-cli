@@ -24,7 +24,7 @@ jobs:
       - uses: astral-sh/setup-uv@v10.3.3
 
       - name: Build the wheel
-        run: uv build
+        run: uv build --wheel
 
       - name: Create the release with the wheel attached
         env:

@@ -95,29 +95,34 @@ For a search across both mail and Teams, the agent combines `mail_find` and `tea
 
 ### What you need
 
-* **uv** (the Python toolchain): `winget install astral-sh.uv` — the setup script installs this for you if it is missing.
 * **Classic Outlook**, signed in. It can run in the background. Used for mail, calendar and people.
 * **Google Chrome** ([google.com/chrome](https://www.google.com/chrome/)), only if you want Teams. The tool drives Teams in a separate Chrome profile.
 * The **Microsoft Single Sign On** Chrome extension ([web store](https://chromewebstore.google.com/detail/microsoft-single-sign-on/ppnbnpeolgkicgegkbkbjmhlideopiji)), only for Teams. On a work-joined (Entra/Intune) PC it is usually installed for you, and it signs Teams in automatically with your Windows login — no password prompt.
+* **uv** (the Python toolchain): `winget install astral-sh.uv`
+* **GitHub CLI** signed in (`winget install GitHub.cli`, then `gh auth login`) — needed only while this repo is private.
 
-### One-command setup (from WSL)
+### Install
 
-With an SSH key that has read access to this repo, run [scripts/setup.sh](scripts/setup.sh) from WSL:
+Download the latest release wheel and install it as a tool:
 
-```bash
-gh api repos/JersyJ/m365-cli/contents/scripts/setup.sh -H 'Accept: application/vnd.github.raw' | bash
+```powershell
+gh release download --repo JersyJ/m365-cli --pattern '*.whl'
+uv tool install m365_cli-*.whl
 ```
 
-(or download `setup.sh` another way and run `bash setup.sh`). It installs the Windows uv if needed, clones the repo to `C:\Users\<you>\m365-cli` (set `M365_DIR` for another place — anywhere under your Windows profile works), builds the Windows venv, puts `m365` and `wuv` wrappers in WSL's `~/.local/bin`, and registers the MCP server with Claude Code and Copilot CLI. It is safe to re-run. Then sign in to classic Outlook and test: `m365 mail list -n 5`.
+This puts the `m365` command on your PATH (`%USERPROFILE%\.local\bin\m365.exe`) with all dependencies. Test it:
 
-### Manual steps
+```powershell
+m365 mail list -n 5
+```
 
-1. Install uv and get the code anywhere under `C:\Users\<you>\`.
-2. Install the dependencies: `uv sync`
-3. Sign in to classic Outlook (once).
-4. Test it: `uv run m365 mail list -n 5`
+### Update
 
-The command is `m365`. In WSL, call `/mnt/c/Users/<you>/m365-cli/.venv/Scripts/m365.exe`; a wrapper in `~/.local/bin/m365` makes this shorter.
+```powershell
+m365 update
+```
+
+It checks the latest release, downloads the wheel and reinstalls it in the background (a few seconds). Check with `m365 version`. The token comes from `gh` or the `GH_TOKEN` variable; once the repo is public, no token is needed.
 
 ### Turn on Teams
 
@@ -127,37 +132,18 @@ The command is `m365`. In WSL, call `/mnt/c/Users/<you>/m365-cli/.venv/Scripts/m
 
 After this, the tool starts the browser off-screen whenever it needs Teams. Keep the browser open if you use Teams often: a cold start takes about 20 seconds.
 
-### Update (source install)
+### For developers
 
-If you installed from the Git checkout (the editable `uv sync` install above), run `bash scripts/update.sh` from WSL. It does `git pull` + `uv sync`. Source changes apply when you restart Claude Code. If dependencies changed, close Claude Code first, because it locks the CLI binary. The private repo is pulled with your SSH key; if git asks for a passphrase, run `ssh-add ~/.ssh/personal` first.
+Work from the source instead of a release: clone the repo anywhere under `C:\Users\<you>\`, run `uv sync`, and use `uv run m365 …` (or `.venv\Scripts\m365.exe`). Update with `git pull` + `uv sync`; close Claude Code first if dependencies changed, because it locks the CLI binary. `m365 update` is only for the release install.
 
-(If you installed from a wheel with `uv tool install`, update with `m365 update` instead — see below.)
-
-### Send it to a colleague
-
-If your colleague has read access to this repo, the one-command setup above is the easiest path — it also gives them `scripts/update.sh` for later updates.
-
-A colleague with repo access who does not want the source can install from a **GitHub Release** instead. They need uv (`winget install astral-sh.uv`) and GitHub CLI signed in (`gh auth login`), then:
-
-```powershell
-gh release download --repo JersyJ/m365-cli --pattern '*.whl'
-uv tool install m365_cli-*.whl
-```
-
-This puts the `m365` command on their PATH (`%USERPROFILE%\.local\bin\m365.exe`) with all dependencies. Register it with Claude Code (see below), using that path. To update later, they run **`m365 update`**: it checks the latest release, downloads the wheel and reinstalls it in the background (the token comes from `gh` or the `GH_TOKEN` variable).
-
-You cut a release by bumping the version in `pyproject.toml` and `src/m365_cli/__init__.py`, then pushing a matching tag: `git tag v0.2.0 && git push origin main v0.2.0`. The workflow in `.github/workflows/release.yml` builds the wheel and attaches it to the release.
-
-Without repo access, build a wheel and send that one file: you run `uv build` and send `dist/m365_cli-*.whl`; they run `uv tool install <the .whl>` (and later `uv tool install --reinstall <new .whl>` — `uv tool upgrade` and `m365 update` need a release to pull from, so they do not work for a hand-delivered wheel).
-
-A wheel is better here than a single `.exe` (PyInstaller): it is small, needs no code signing, and is not flagged or blocked by Defender/SmartScreen on a managed device, which an unsigned `.exe` often is. The one thing they install is uv.
+To cut a release: bump the version in `pyproject.toml` (the only place — the code reads it from the package metadata), commit, and push a matching tag, for example `git tag -m v0.2.0 v0.2.0 && git push origin main v0.2.0`. The workflow in `.github/workflows/release.yml` builds the wheel and attaches it to a GitHub Release; `m365 update` picks it up from there.
 
 ### Connect Claude Code
 
 Run this command once (in WSL or in Windows), then start a new Claude Code session:
 
 ```bash
-claude mcp add m365 -s user -- /mnt/c/Users/<you>/src/m365-cli/.venv/Scripts/m365.exe mcp
+claude mcp add m365 -s user -- /mnt/c/Users/<you>/.local/bin/m365.exe mcp
 ```
 
 ### Connect GitHub Copilot
@@ -165,7 +151,7 @@ claude mcp add m365 -s user -- /mnt/c/Users/<you>/src/m365-cli/.venv/Scripts/m36
 Copilot CLI (in WSL or in Windows):
 
 ```bash
-copilot mcp add m365 -- /mnt/c/Users/<you>/src/m365-cli/.venv/Scripts/m365.exe mcp
+copilot mcp add m365 -- /mnt/c/Users/<you>/.local/bin/m365.exe mcp
 ```
 
 VS Code (Copilot agent mode): add this server to the user file `%APPDATA%\Code\User\mcp.json`, then select "Agent" in Copilot Chat:
@@ -175,7 +161,7 @@ VS Code (Copilot agent mode): add this server to the user file `%APPDATA%\Code\U
   "servers": {
     "m365": {
       "type": "stdio",
-      "command": "C:\\Users\\<you>\\src\\m365-cli\\.venv\\Scripts\\m365.exe",
+      "command": "C:\\Users\\<you>\\.local\\bin\\m365.exe",
       "args": ["mcp"]
     }
   }
