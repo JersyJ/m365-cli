@@ -147,3 +147,24 @@ class SearchHit(BaseModel):
     where: str
     preview: str = ""
     time: datetime | None = None
+
+
+class SharedFile(BaseModel):
+    """A file shared in a chat."""
+
+    model_config = ConfigDict(frozen=True)
+
+    name: str
+    file_type: str = ""
+    who: str = ""
+    time: datetime | None = None
+
+
+class FileText(BaseModel):
+    """Extracted text of a shared file."""
+
+    model_config = ConfigDict(frozen=True)
+
+    name: str
+    text: str
+    truncated: bool = False

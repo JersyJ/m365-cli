@@ -165,6 +165,7 @@ class FakeState(BaseModel):
     saved_files: list[SavedFile] = Field(default_factory=list)
     teams_chats: list[FakeChat] = Field(default_factory=list)
     teams_drafts: dict[str, dict[str, object]] = Field(default_factory=dict)
+    teams_files: dict[str, str] = Field(default_factory=dict)
     next_id: int = 1000
 
     def new_id(self, prefix: str) -> str:

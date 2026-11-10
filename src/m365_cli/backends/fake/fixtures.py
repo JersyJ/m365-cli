@@ -356,4 +356,7 @@ def build_state() -> FakeState:
         signatures=signatures,
         mailboxes=[SHARED_MAILBOX],
         teams_chats=_teams_chats(),
+        teams_files={
+            "deploy-key.txt": "DEPLOY_ENV=prod\nDEPLOY_KEY=rotated-on-2026-11-09\nOWNER=platform-team"
+        },
     )

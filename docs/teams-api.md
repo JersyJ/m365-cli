@@ -34,4 +34,8 @@ These notes are facts that we checked on a real account. Update them when someth
 * Presence: `POST presence.teams.microsoft.com/v1/presence/getpresence/` with `[{"mri": "8:orgid:<guid>"}]` and the `https://api.spaces.skype.com` bearer (not the skype token, which gives 401). Each record has `availability`, `activity` (more specific), `calendarData.isOutOfOffice` / `outOfOfficeNote`, `note.message` (status note) and `lastActiveTime`.
 * Resolve a colleague by email with `fetchShortProfile` (middle-tier, spaces bearer). By name, use substrate people suggestions: `POST substrate.office.com/search/api/v1/suggestions?scenario=peoplepicker.newChat` with the Substrate bearer; each suggestion carries `MRI`, `DisplayName`, `EmailAddresses`, `JobTitle`, `Department`, `OfficeLocation`. The picker excludes yourself.
 
+## Files
+
+* A message's `properties.files` (a JSON string) lists shared files with `fileName`, `fileType`, `objectUrl` (SharePoint URL) and `baseUrl` (the drive root). Download the bytes from SharePoint: `GET {baseUrl}_api/v2.0/drive/root:/{path under Documents}:/content` with the SharePoint bearer (audience `00000003-0000-0ff1-ce00-000000000000`, captured on the wire). The Graph token is not reliably minted in a driven session, so the tool uses SharePoint directly.
+
 Sources: our own tests, [msteams-mcp](https://github.com/m0nkmaster/msteams-mcp) and [teams-api](https://github.com/Maxim-Mazurok/teams-api).

@@ -180,3 +180,11 @@ prompt = "Search my Teams messages for anything about the NAT gateway."
 tools_used = ["teams_search"]
 answer_all = [["nat", "destroy", "gateway"]]
 outbox_empty = true
+
+[[task]]
+id = "teams-file"
+prompt = "Read the deploy-key.txt file shared in the Platform squad Teams chat and tell me the owner."
+[task.expect]
+tools_used = ["teams_file"]
+answer_all = [["platform-team", "platform team"]]
+outbox_empty = true

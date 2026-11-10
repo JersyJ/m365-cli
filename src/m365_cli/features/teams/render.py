@@ -6,9 +6,11 @@ from m365_cli.core.timeutil import fmt
 from m365_cli.features.teams.models import (
     Chat,
     Digest,
+    FileText,
     MessagePage,
     Presence,
     SearchHit,
+    SharedFile,
     TeamsDraft,
     TeamsMessage,
 )
@@ -142,3 +144,21 @@ def search(page: Page[SearchHit]) -> str:
     hint = more_hint(page)
     tail = "\n[Open a result with teams_read(chat=<ref>).]"
     return body + (("\n" + hint) if hint else "") + tail
+
+
+def shared_files(files: list[SharedFile]) -> str:
+    """List files shared in a chat, with how to read one."""
+    if not files:
+        return "No files shared in this chat's recent messages."
+    lines = [f"Files shared ({len(files)}):"]
+    for f in files:
+        kind = f" ({f.file_type})" if f.file_type else ""
+        lines.append(f"- {f.name}{kind} from {f.who} {fmt(f.time)}")
+    lines.append("(Read one with teams_file(chat=…, name=…).)")
+    return "\n".join(lines)
+
+
+def file_text(ft: FileText) -> str:
+    """Extracted file text inside UNTRUSTED markers."""
+    body = untrusted(f"teams file {ft.name}", ft.text + (" […]" if ft.truncated else ""))
+    return f"{ft.name}:\n{body}"

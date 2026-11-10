@@ -19,7 +19,7 @@ from m365_cli.core.errors import BackendUnavailableError, M365Error, NotFoundErr
 TEAMS_URL = "https://teams.cloud.microsoft/"
 TEAMS_HOSTS = ("teams.cloud.microsoft", "teams.microsoft.com", "teams.chat.microsoft.com")
 LOGIN_HOSTS = ("login.microsoftonline.com", "login.microsoft.com", "login.live.com")
-_HOOK_VERSION = 4
+_HOOK_VERSION = 6
 _START_WAIT = 25
 _READY_WAIT = 60
 _MAX_RETRIES = 3
@@ -135,6 +135,39 @@ class TeamsSession:
                 continue
             return _result(status, str(reply.get("body") or ""), method, path)
         raise TeamsRateLimitError("Teams is rate-limiting requests (429). Wait a minute, then retry.")
+
+    def download(self, service: str, path: str, *, auth: tuple[Auth, ...]) -> bytes:
+        """Download a binary file from a service (e.g. 'graph'); returns the raw bytes.
+
+        Raises:
+            TeamsAuthError: Unauthorized.
+            NotFoundError: 404.
+            TeamsApiError: Any other unexpected status.
+        """
+        payload = {"service": service, "path": path, "method": "GET", "auth": list(auth), "binary": True}
+        renewed = False
+        for _ in range(2):
+            reply = self._call(payload)
+            status = int(reply.get("status") or 0)
+            error = str(reply.get("error", ""))
+            if (status == 401 or error.startswith("no-token")) and not renewed:
+                self._renew()
+                renewed = True
+                continue
+            if status == 0:
+                if error.startswith("no-token"):
+                    raise TeamsAuthError(
+                        f"Teams has no token for {error.split(' ', 1)[-1]}. Open a file in the Teams window "
+                        "once, then retry."
+                    )
+                raise BackendUnavailableError(f"Teams download failed: {error or 'no answer'}")
+            if 200 <= status < 300:
+                import base64
+
+                return base64.b64decode(str(reply.get("base64") or ""))
+            _result(status, "", "GET", path)
+            raise TeamsApiError(f"Teams answered {status} for the download.", status)
+        raise TeamsAuthError("Teams did not provide a token for the download.")
 
     def status(self) -> dict[str, Any]:
         """Token and service state of the page script (no token values)."""

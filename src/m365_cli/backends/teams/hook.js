@@ -1,5 +1,5 @@
 (() => {
-  const VERSION = 4;
+  const VERSION = 6;
   if (window.__m365cli && window.__m365cli.version === VERSION) return;
 
   const bearers = new Map();
@@ -113,6 +113,7 @@
 
   const baseOf = (service) => {
     if (FIXED[service]) return FIXED[service];
+    if (/^https:\/\//.test(service)) return service.replace(/\/$/, '');
     const value = serviceMap()[service];
     return typeof value === 'string' && /^https:\/\//.test(value) ? value.replace(/\/$/, '') : null;
   };
@@ -163,11 +164,18 @@
     }
     try {
       const response = await originalFetch(base + req.path, init);
-      return {
-        status: response.status,
-        retryAfter: response.headers.get('Retry-After'),
-        body: await response.text(),
-      };
+      const out = { status: response.status, retryAfter: response.headers.get('Retry-After') };
+      if (req.binary) {
+        const bytes = new Uint8Array(await response.arrayBuffer());
+        let binary = '';
+        for (let i = 0; i < bytes.length; i += 0x8000) {
+          binary += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+        }
+        out.base64 = btoa(binary);
+      } else {
+        out.body = await response.text();
+      }
+      return out;
     } catch (e) {
       return { status: 0, error: String((e && e.message) || e) };
     }

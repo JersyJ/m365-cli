@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
 from typing import Annotated
 
 import typer
@@ -27,6 +28,14 @@ def build_cli(get_ctx: ContextProvider) -> typer.Typer:
 
     def api() -> TeamsApi:
         return teams_api(get_ctx())
+
+    _read_commands(app, api, get_ctx)
+    _write_commands(app, api)
+    return app
+
+
+def _read_commands(app: typer.Typer, api: Callable[[], TeamsApi], get_ctx: ContextProvider) -> None:
+    """Commands that only read: list, digest, read, search, files, status, browser."""
 
     @app.command("list")
     def list_(
@@ -70,6 +79,32 @@ def build_cli(get_ctx: ContextProvider) -> typer.Typer:
         typer.echo(render.search(api().search(query, offset=offset, limit=limit)))
 
     @app.command()
+    def files(
+        chat: ChatArg,
+        name: Annotated[str | None, typer.Option("--name", help="Read this file's text.")] = None,
+    ) -> None:
+        """List files shared in a chat, or read one with --name."""
+        service = api()
+        if name:
+            typer.echo(render.file_text(service.file_text(chat, name)))
+        else:
+            typer.echo(render.shared_files(service.files(chat)))
+
+    @app.command()
+    def status(who: Annotated[str, typer.Argument(help="Colleague's name or email.")]) -> None:
+        """Live Teams presence and card of a colleague."""
+        typer.echo(render.presence(api().status(who)))
+
+    @app.command()
+    def browser() -> None:
+        """Start the Teams browser if needed and show its sign-in state (no token values)."""
+        typer.echo(json.dumps(get_ctx().teams.status(), indent=1, ensure_ascii=False))
+
+
+def _write_commands(app: typer.Typer, api: Callable[[], TeamsApi]) -> None:
+    """Commands that change things: write, send, mark-read, react, edit, delete."""
+
+    @app.command()
     def write(
         body: Annotated[str, typer.Argument(help="Message (Markdown); '-' reads stdin; '@[Name]' mentions.")],
         chat: Annotated[str | None, typer.Option("--chat", "-c", help="Chat ref or name.")] = None,
@@ -97,11 +132,6 @@ def build_cli(get_ctx: ContextProvider) -> typer.Typer:
     def send(draft_ref: Annotated[str, typer.Argument(help="Draft ref (d:…).")], at: At = None) -> None:
         """Send a saved draft now (or schedule it with --at)."""
         typer.echo(api().send(draft_ref, send_at=parse_when(at) if at else None))
-
-    @app.command()
-    def status(who: Annotated[str, typer.Argument(help="Colleague's name or email.")]) -> None:
-        """Live Teams presence and card of a colleague."""
-        typer.echo(render.presence(api().status(who)))
 
     @app.command("mark-read")
     def mark_read(chat: ChatArg) -> None:
@@ -143,10 +173,3 @@ def build_cli(get_ctx: ContextProvider) -> typer.Typer:
             typer.echo("Cancelled.")
             return
         typer.echo(api().update_message(message_ref, delete=True))
-
-    @app.command()
-    def browser() -> None:
-        """Start the Teams browser if needed and show its sign-in state (no token values)."""
-        typer.echo(json.dumps(get_ctx().teams.status(), indent=1, ensure_ascii=False))
-
-    return app

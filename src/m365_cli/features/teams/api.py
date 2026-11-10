@@ -9,9 +9,11 @@ from m365_cli.features.teams.models import (
     Chat,
     ChatKind,
     Digest,
+    FileText,
     MessagePage,
     Presence,
     SearchHit,
+    SharedFile,
     TeamsDraft,
 )
 
@@ -92,6 +94,18 @@ class TeamsApi(Protocol):
 
     def search(self, query: str, *, offset: int = 0, limit: int = 15) -> Page[SearchHit]:
         """Full-text search across your Teams chats and channels; each hit links to its conversation."""
+        ...
+
+    def files(self, chat: str, *, limit: int = 30) -> list[SharedFile]:
+        """Files shared in a chat's recent messages (newest first)."""
+        ...
+
+    def file_text(self, chat: str, name: str) -> FileText:
+        """Extract the text of a shared file (PDF, DOCX, PPTX, XLSX or plain text) by name.
+
+        Raises:
+            InvalidInputError: No file (or several) match the name, or the type is unsupported.
+        """
         ...
 
     def update_message(

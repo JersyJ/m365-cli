@@ -9,18 +9,20 @@ from m365_cli.core.errors import InvalidInputError, NotFoundError
 from m365_cli.core.markup import BodyFormat
 from m365_cli.core.paging import Page, take_page
 from m365_cli.core.refs import BackendId
-from m365_cli.core.text import one_line, with_signoff
+from m365_cli.core.text import one_line, truncate, with_signoff
 from m365_cli.core.timeutil import now
 from m365_cli.features.teams import rules
 from m365_cli.features.teams.models import (
     Chat,
     ChatKind,
     Digest,
+    FileText,
     Member,
     Mention,
     MessagePage,
     Presence,
     SearchHit,
+    SharedFile,
     TeamsDraft,
     TeamsMessage,
 )
@@ -94,6 +96,27 @@ class FakeTeamsService:
             found = [c for c in found if c.unread]
         items, more = take_page(found, offset=offset, limit=limit)
         return Page(items=items, offset=offset, has_more=more)
+
+    def files(self, chat: str, *, limit: int = 30) -> list[SharedFile]:
+        """See `TeamsApi.files`."""
+        c = self._fake_chat(self._resolve(chat).id)
+        out: list[SharedFile] = []
+        for m in reversed(c.messages):
+            for name in m.files:
+                suffix = name.rsplit(".", 1)[-1] if "." in name else ""
+                out.append(SharedFile(name=name, file_type=suffix, who=m.sender, time=m.time))
+        return out[:limit]
+
+    def file_text(self, chat: str, name: str) -> FileText:
+        """See `TeamsApi.file_text`."""
+        c = self._fake_chat(self._resolve(chat).id)
+        names = [n for m in c.messages for n in m.files]
+        match = rules.pick_one(names, name, "shared file", lambda n: n)
+        text = self._state.teams_files.get(match)
+        if text is None:
+            raise InvalidInputError(f"Cannot read text from {match}.")
+        cut_text, cut = truncate(text, self._ctx.settings.body_max_chars)
+        return FileText(name=match, text=cut_text, truncated=cut)
 
     def _fake_chat(self, chat_id: str) -> FakeChat:
         found = next((c for c in self._state.teams_chats if c.id == chat_id and not c.deleted), None)

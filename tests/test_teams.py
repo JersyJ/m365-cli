@@ -20,8 +20,8 @@ ME = "8:orgid:aaaaaaaa-0000-0000-0000-000000000001"
 OTHER = "8:orgid:bbbbbbbb-0000-0000-0000-000000000002"
 
 
-def call(ctx: AppContext, name: str, **arguments: Any) -> str:
-    result = asyncio.run(build_server(ctx).call_tool(name, arguments))
+def call(ctx: AppContext, tool: str, **arguments: Any) -> str:
+    result = asyncio.run(build_server(ctx).call_tool(tool, arguments))
     assert isinstance(result, CallToolResult)
     return "\n".join(c.text for c in result.content if isinstance(c, TextContent))
 
@@ -298,3 +298,33 @@ def test_search_kind_and_sender() -> None:
     assert rules.search_kind("Channel") == "channel"
     assert rules.sender_name({"EmailAddress": {"Name": "Jana N", "Address": "j@x.com"}}) == "Jana N"
     assert rules.sender_name("Petr") == "Petr"
+
+
+def test_fake_files_and_text(fake_ctx: AppContext) -> None:
+    listing = call(fake_ctx, "teams_file", chat="Platform squad")
+    assert "deploy-key.txt" in listing
+    text = call(fake_ctx, "teams_file", chat="Platform squad", name="deploy-key")
+    assert "<<<UNTRUSTED teams file deploy-key.txt" in text
+    assert "rotated-on-2026-11-09" in text
+
+
+def test_file_entries() -> None:
+    import json as _json
+
+    props = {
+        "files": _json.dumps(
+            [
+                {
+                    "fileName": "report.pdf",
+                    "fileType": "pdf",
+                    "objectUrl": "https://x/Documents/r.pdf",
+                    "baseUrl": "https://x/",
+                }
+            ]
+        )
+    }
+    entries = rules.file_entries(props)
+    assert entries == [
+        {"name": "report.pdf", "type": "pdf", "url": "https://x/Documents/r.pdf", "base": "https://x/"}
+    ]
+    assert rules.file_entries({"files": "[]"}) == []

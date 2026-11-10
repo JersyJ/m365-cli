@@ -109,6 +109,20 @@ def register_mcp(server: MCPServer, get_ctx: ContextProvider) -> None:
         """
         return render.search(api().search(query, offset=offset, limit=limit))
 
+    @server.tool(title="Teams files", annotations=READ_ONLY, structured_output=False)
+    @tool_errors
+    def teams_file(
+        chat: ChatArg,
+        name: Annotated[
+            str | None, Field(description="A file name to read its text; omit to list shared files.")
+        ] = None,
+    ) -> str:
+        """List files shared in a chat, or read the text of one (PDF, DOCX, PPTX, XLSX or plain text)."""
+        service = api()
+        if name:
+            return render.file_text(service.file_text(chat, name))
+        return render.shared_files(service.files(chat))
+
     @server.tool(title="Draft Teams message", annotations=LOCAL_WRITE, structured_output=False)
     @tool_errors
     def teams_draft(

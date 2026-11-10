@@ -3,15 +3,18 @@ from __future__ import annotations
 import time
 import urllib.parse
 import uuid
+from collections.abc import Iterator
 from datetime import datetime
 from functools import cached_property
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from m365_cli.core.doctext import extract_text
 from m365_cli.core.errors import BackendUnavailableError, InvalidInputError, M365Error, NotFoundError
 from m365_cli.core.markup import BodyFormat
 from m365_cli.core.paging import Page, take_page
 from m365_cli.core.refs import BackendId
-from m365_cli.core.text import one_line, with_signoff
+from m365_cli.core.text import clean_body, one_line, truncate, with_signoff
 from m365_cli.core.timeutil import now
 from m365_cli.features.teams import rules
 from m365_cli.features.teams.cache import ProfileCache
@@ -20,11 +23,13 @@ from m365_cli.features.teams.models import (
     Chat,
     ChatKind,
     Digest,
+    FileText,
     Member,
     Mention,
     MessagePage,
     Presence,
     SearchHit,
+    SharedFile,
     TeamsDraft,
     TeamsMessage,
 )
@@ -39,8 +44,10 @@ SUBSTRATE = "substrate"
 SUBSTRATE_AUD = "66a88757-258c-4c72-893c-3e8bed4d6899"
 SUBSTRATE_OFFICE = "https://substrate.office.com"
 PRESENCE = "presence"
+SHAREPOINT_AUD = "00000003-0000-0ff1-ce00-000000000000"
 _LIST_SIZE = 500
 _MENTIONS = "48:mentions"
+_FILE_SCAN = 40
 _MESSAGE_VIEW = "msnp24Equivalent|supportsMessageProperties"
 _PROFILE_PATH = "/beta/users/fetchShortProfile?isMailAddress={}&enableGuest=true&skypeTeamsInfo=true"
 
@@ -544,6 +551,63 @@ class TeamsService:
                     )
                 )
         return Page(items=hits[:limit], offset=offset, has_more=len(hits) > limit)
+
+    def files(self, chat: str, *, limit: int = 30) -> list[SharedFile]:
+        """See `TeamsApi.files`."""
+        found: list[SharedFile] = []
+        for raw, entry in self._file_messages(chat):
+            found.append(
+                SharedFile(
+                    name=entry["name"],
+                    file_type=entry["type"],
+                    who=one_line(str(raw.get("imdisplayname") or ""), 40),
+                    time=rules.parse_time(raw.get("originalarrivaltime") or raw.get("composetime")),
+                )
+            )
+            if len(found) >= limit:
+                break
+        return found
+
+    def file_text(self, chat: str, name: str) -> FileText:
+        """See `TeamsApi.file_text`."""
+        entries = [entry for _, entry in self._file_messages(chat)]
+        match = rules.pick_one(entries, name, "shared file", lambda e: e["name"])
+        data = self._download_file(match)
+        import tempfile
+
+        suffix = "." + match["name"].rsplit(".", 1)[-1] if "." in match["name"] else ""
+        with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as handle:
+            handle.write(data)
+            temp = Path(handle.name)
+        try:
+            text, cut = truncate(clean_body(extract_text(temp)), self._ctx.settings.body_max_chars)
+        finally:
+            temp.unlink(missing_ok=True)
+        return FileText(name=match["name"], text=text, truncated=cut)
+
+    def _download_file(self, entry: dict[str, str]) -> bytes:
+        """Download a shared file's bytes from SharePoint, using the file's own drive."""
+        base = entry.get("base", "").rstrip("/")
+        url = entry["url"]
+        if not base or not url.startswith(base):
+            raise InvalidInputError(f"Cannot locate {entry['name']} in SharePoint.")
+        relative = urllib.parse.unquote(url[len(base) :].lstrip("/"))
+        for prefix in ("Documents/", "Shared Documents/"):
+            relative = relative.removeprefix(prefix)
+        path = f"/_api/v2.0/drive/root:/{urllib.parse.quote(relative)}:/content"
+        return self._session.download(base, path, auth=(SHAREPOINT_AUD,))
+
+    def _file_messages(self, chat: str) -> Iterator[tuple[dict[str, Any], dict[str, str]]]:
+        """Yield (message, file-entry) pairs for files in a chat's recent messages, newest first."""
+        target = self._resolve(chat)
+        path = (
+            f"/v1/users/ME/conversations/{_q(target.id)}/messages?view={_MESSAGE_VIEW}"
+            f"&pageSize={_FILE_SCAN}&startTime=1"
+        )
+        reply = self._session.request(CHAT, path) or {}
+        for raw in reply.get("messages") or []:
+            for entry in rules.file_entries(raw.get("properties") or {}):
+                yield raw, entry
 
     def update_message(
         self,

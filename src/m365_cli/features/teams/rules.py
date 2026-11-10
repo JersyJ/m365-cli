@@ -637,3 +637,25 @@ def sender_name(value: Any) -> str:
         email = value.get("EmailAddress") or {}
         return str(email.get("Name") or email.get("Address") or value.get("DisplayName") or "")
     return str(value or "")
+
+
+def file_entries(properties: dict[str, Any]) -> list[dict[str, str]]:
+    """Shareable files on a message (`properties.files`): name, type and SharePoint URL."""
+    raw = properties.get("files")
+    if isinstance(raw, str):
+        try:
+            raw = json.loads(raw) if raw.strip() else []
+        except ValueError:
+            raw = []
+    out: list[dict[str, str]] = []
+    for item in raw if isinstance(raw, list) else []:
+        if isinstance(item, dict) and item.get("objectUrl"):
+            out.append(
+                {
+                    "name": str(item.get("fileName") or item.get("title") or "file"),
+                    "type": str(item.get("fileType") or ""),
+                    "url": str(item["objectUrl"]),
+                    "base": str(item.get("baseUrl") or ""),
+                }
+            )
+    return out
