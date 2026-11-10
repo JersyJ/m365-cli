@@ -121,6 +121,16 @@ After this, the tool starts the browser off-screen whenever it needs Teams. Keep
 
 Run `bash scripts/update.sh` from WSL (it does `git pull` + `uv sync`). Source changes apply when you restart Claude Code. If dependencies changed, close Claude Code first, because it locks the CLI binary. The private repo is pulled with your SSH key; if git asks for a passphrase, run `ssh-add ~/.ssh/personal` first.
 
+### Send it to a colleague
+
+Your colleague needs the same basics: classic Outlook signed in, and (for Teams) Chrome with the Single Sign On extension. They do **not** need the source or git. Build a wheel and send that one file:
+
+1. You: `uv build` — this writes `dist/m365_cli-0.1.0-py3-none-any.whl`. Send them the `.whl`.
+2. Them: install uv once (`winget install astral-sh.uv`), then `uv tool install m365_cli-0.1.0-py3-none-any.whl`. This puts the `m365` command on their PATH (`%USERPROFILE%\.local\bin\m365.exe`) with all dependencies.
+3. Them: register it with Claude Code (see below), using that path. For a new wheel later, `uv tool install --reinstall …`.
+
+A wheel is better here than a single `.exe` (PyInstaller): it is small, needs no code signing, and is not flagged or blocked by Defender/SmartScreen on a managed device, which an unsigned `.exe` often is. The one thing they install is uv.
+
 ### Connect Claude Code
 
 Run this command once (in WSL or in Windows), then start a new Claude Code session:
