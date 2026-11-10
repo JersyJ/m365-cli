@@ -95,19 +95,29 @@ For a search across both mail and Teams, the agent combines `mail_find` and `tea
 
 ### What you need
 
-* **uv** (the Python toolchain): `winget install astral-sh.uv`
+* **uv** (the Python toolchain): `winget install astral-sh.uv` — the setup script installs this for you if it is missing.
 * **Classic Outlook**, signed in. It can run in the background. Used for mail, calendar and people.
 * **Google Chrome** ([google.com/chrome](https://www.google.com/chrome/)), only if you want Teams. The tool drives Teams in a separate Chrome profile.
 * The **Microsoft Single Sign On** Chrome extension ([web store](https://chromewebstore.google.com/detail/microsoft-single-sign-on/ppnbnpeolgkicgegkbkbjmhlideopiji)), only for Teams. On a work-joined (Entra/Intune) PC it is usually installed for you, and it signs Teams in automatically with your Windows login — no password prompt.
 
-### Steps
+### One-command setup (from WSL)
 
-1. Install uv and get the code into `C:\Users\<you>\src\m365-cli`.
+With an SSH key that has read access to this repo, run [scripts/setup.sh](scripts/setup.sh) from WSL:
+
+```bash
+gh api repos/JersyJ/m365-cli/contents/scripts/setup.sh -H 'Accept: application/vnd.github.raw' | bash
+```
+
+(or download `setup.sh` another way and run `bash setup.sh`). It installs the Windows uv if needed, clones the repo to `C:\Users\<you>\m365-cli` (set `M365_DIR` for another place — anywhere under your Windows profile works), builds the Windows venv, puts `m365` and `wuv` wrappers in WSL's `~/.local/bin`, and registers the MCP server with Claude Code and Copilot CLI. It is safe to re-run. Then sign in to classic Outlook and test: `m365 mail list -n 5`.
+
+### Manual steps
+
+1. Install uv and get the code anywhere under `C:\Users\<you>\`.
 2. Install the dependencies: `uv sync`
 3. Sign in to classic Outlook (once).
 4. Test it: `uv run m365 mail list -n 5`
 
-The command is `m365`. In WSL, call `/mnt/c/Users/<you>/src/m365-cli/.venv/Scripts/m365.exe`; a wrapper in `~/.local/bin/m365` makes this shorter.
+The command is `m365`. In WSL, call `/mnt/c/Users/<you>/m365-cli/.venv/Scripts/m365.exe`; a wrapper in `~/.local/bin/m365` makes this shorter.
 
 ### Turn on Teams
 
@@ -125,7 +135,9 @@ If you installed from the Git checkout (the editable `uv sync` install above), r
 
 ### Send it to a colleague
 
-Your colleague needs the same basics: classic Outlook signed in, and (for Teams) Chrome with the Single Sign On extension. They do **not** need the source or git. Build a wheel and send that one file:
+If your colleague has read access to this repo, the one-command setup above is the easiest path — it also gives them `scripts/update.sh` for later updates.
+
+Without repo access, your colleague needs the same basics: classic Outlook signed in, and (for Teams) Chrome with the Single Sign On extension. They do **not** need the source or git. Build a wheel and send that one file:
 
 1. You: `uv build` — this writes `dist/m365_cli-0.1.0-py3-none-any.whl`. Send them the `.whl`.
 2. Them: install uv once (`winget install astral-sh.uv`), then `uv tool install m365_cli-0.1.0-py3-none-any.whl`. This puts the `m365` command on their PATH (`%USERPROFILE%\.local\bin\m365.exe`) with all dependencies.
