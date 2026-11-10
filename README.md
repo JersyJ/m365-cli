@@ -63,7 +63,7 @@ A reply to a mail in another mailbox goes out from that mailbox.
 | `teams_read` | `m365 teams read` | Shows the newest messages of a chat: sender, time, text, quoted message, reactions, files. Pages with `older`. |
 | `teams_digest` | `m365 teams digest` | What needs you: @mentions and replies to you, plus unread chats and channels. Use it for "what is new". |
 | `teams_search` | `m365 teams search` | Full-text search across your Teams chats and channels. Each hit links to its conversation. |
-| `teams_file` | `m365 teams files` | Lists files shared in a chat, or reads the text of one (PDF, DOCX, PPTX, XLSX, text). |
+| `teams_file` | `m365 teams files` | Lists files shared in a chat, or reads the text of one (PDF, DOCX, PPTX, XLSX, and text files such as .txt, .md, .csv, .json). |
 | `teams_draft` | `m365 teams write` | Prepares a message, a reply (with quote) or a first message to a person. The body is Markdown. `@[Name]` mentions a chat member. |
 | `teams_send` | `m365 teams send` | Sends a draft now, or at a later time (`send_at`). |
 | `teams_status` | `m365 teams status` | Shows a colleague's live Teams presence (available, busy, in a meeting, away, out of office, offline), status note and card. |
@@ -93,22 +93,33 @@ For a search across both mail and Teams, the agent combines `mail_find` and `tea
 
 ## Install (Windows)
 
-1. Install uv: `winget install astral-sh.uv`
-2. Open the project directory: `cd C:\Users\<you>\src\m365-cli`
-3. Install the dependencies: `uv sync`
-4. Open classic Outlook and sign in. Outlook can run in the background.
-5. Do a test: `uv run m365 mail list -n 5`
+### What you need
 
-In WSL, call `/mnt/c/Users/<you>/src/m365-cli/.venv/Scripts/m365.exe`.
-A wrapper in `~/.local/bin/m365` makes this easier.
+* **uv** (the Python toolchain): `winget install astral-sh.uv`
+* **Classic Outlook**, signed in. It can run in the background. Used for mail, calendar and people.
+* **Google Chrome** ([google.com/chrome](https://www.google.com/chrome/)), only if you want Teams. The tool drives Teams in a separate Chrome profile.
+* The **Microsoft Single Sign On** Chrome extension ([web store](https://chromewebstore.google.com/detail/microsoft-single-sign-on/ppnbnpeolgkicgegkbkbjmhlideopiji)), only for Teams. On a work-joined (Entra/Intune) PC it is usually installed for you, and it signs Teams in automatically with your Windows login — no password prompt.
 
-### Sign in to Teams (once)
+### Steps
 
-1. Run `uv run m365 teams browser`. The tool starts Chrome (or Edge) with its own profile in `%LOCALAPPDATA%\m365-cli\chrome-teams`.
-2. If Teams asks you to sign in, the window becomes visible. Sign in with your work account.
-3. Run `uv run m365 teams browser` again. The output shows `"skype"` and `"me"` when Teams is ready.
+1. Install uv and get the code into `C:\Users\<you>\src\m365-cli`.
+2. Install the dependencies: `uv sync`
+3. Sign in to classic Outlook (once).
+4. Test it: `uv run m365 mail list -n 5`
 
-After that, the tool starts the browser off-screen when it needs Teams. Do not close the browser if you use Teams often: a start takes approximately 20 seconds.
+The command is `m365`. In WSL, call `/mnt/c/Users/<you>/src/m365-cli/.venv/Scripts/m365.exe`; a wrapper in `~/.local/bin/m365` makes this shorter.
+
+### Turn on Teams
+
+1. Run `m365 teams browser`. The tool starts Chrome off-screen with its own profile in `%LOCALAPPDATA%\m365-cli\chrome-teams`.
+2. On a work-joined PC with the Single Sign On extension, Teams signs in by itself. The output shows `"skype"` and `"me"` when it is ready — you are done.
+3. If it instead shows a sign-in window (no SSO), sign in once with your work account, then run `m365 teams browser` again.
+
+After this, the tool starts the browser off-screen whenever it needs Teams. Keep the browser open if you use Teams often: a cold start takes about 20 seconds.
+
+### Update
+
+Run `bash scripts/update.sh` from WSL (it does `git pull` + `uv sync`). Source changes apply when you restart Claude Code. If dependencies changed, close Claude Code first, because it locks the CLI binary. The private repo is pulled with your SSH key; if git asks for a passphrase, run `ssh-add ~/.ssh/personal` first.
 
 ### Connect Claude Code
 
