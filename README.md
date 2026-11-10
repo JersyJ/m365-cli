@@ -131,19 +131,24 @@ After this, the tool starts the browser off-screen whenever it needs Teams. Keep
 
 If you installed from the Git checkout (the editable `uv sync` install above), run `bash scripts/update.sh` from WSL. It does `git pull` + `uv sync`. Source changes apply when you restart Claude Code. If dependencies changed, close Claude Code first, because it locks the CLI binary. The private repo is pulled with your SSH key; if git asks for a passphrase, run `ssh-add ~/.ssh/personal` first.
 
-(If you installed from a wheel with `uv tool install`, update it by reinstalling a new wheel instead — see below.)
+(If you installed from a wheel with `uv tool install`, update with `m365 update` instead — see below.)
 
 ### Send it to a colleague
 
 If your colleague has read access to this repo, the one-command setup above is the easiest path — it also gives them `scripts/update.sh` for later updates.
 
-Without repo access, your colleague needs the same basics: classic Outlook signed in, and (for Teams) Chrome with the Single Sign On extension. They do **not** need the source or git. Build a wheel and send that one file:
+A colleague with repo access who does not want the source can install from a **GitHub Release** instead. They need uv (`winget install astral-sh.uv`) and GitHub CLI signed in (`gh auth login`), then:
 
-1. You: `uv build` — this writes `dist/m365_cli-0.1.0-py3-none-any.whl`. Send them the `.whl`.
-2. Them: install uv once (`winget install astral-sh.uv`), then `uv tool install m365_cli-0.1.0-py3-none-any.whl`. This puts the `m365` command on their PATH (`%USERPROFILE%\.local\bin\m365.exe`) with all dependencies.
-3. Them: register it with Claude Code (see below), using that path.
+```powershell
+gh release download --repo JersyJ/m365-cli --pattern '*.whl'
+uv tool install m365_cli-*.whl
+```
 
-To update them later: you `uv build` a new wheel, send it, and they run `uv tool install --reinstall m365_cli-0.1.0-py3-none-any.whl`. (`uv tool upgrade` does not work for a wheel install — a wheel has no source to upgrade from, so reinstalling the new wheel is the way. The `scripts/update.sh` script is only for the Git/source install.)
+This puts the `m365` command on their PATH (`%USERPROFILE%\.local\bin\m365.exe`) with all dependencies. Register it with Claude Code (see below), using that path. To update later, they run **`m365 update`**: it checks the latest release, downloads the wheel and reinstalls it in the background (the token comes from `gh` or the `GH_TOKEN` variable).
+
+You cut a release by bumping the version in `pyproject.toml` and `src/m365_cli/__init__.py`, then pushing a matching tag: `git tag v0.2.0 && git push origin main v0.2.0`. The workflow in `.github/workflows/release.yml` builds the wheel and attaches it to the release.
+
+Without repo access, build a wheel and send that one file: you run `uv build` and send `dist/m365_cli-*.whl`; they run `uv tool install <the .whl>` (and later `uv tool install --reinstall <new .whl>` — `uv tool upgrade` and `m365 update` need a release to pull from, so they do not work for a hand-delivered wheel).
 
 A wheel is better here than a single `.exe` (PyInstaller): it is small, needs no code signing, and is not flagged or blocked by Defender/SmartScreen on a managed device, which an unsigned `.exe` often is. The one thing they install is uv.
 

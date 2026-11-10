@@ -133,6 +133,13 @@ def build_app() -> typer.Typer:
         """Print the version."""
         typer.echo(__version__)
 
+    @app.command()
+    def update() -> None:
+        """Update a wheel install to the latest GitHub release."""
+        from m365_cli.core.update import self_update
+
+        self_update(typer.echo)
+
     return app
 
 
