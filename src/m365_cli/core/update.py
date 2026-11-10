@@ -4,6 +4,7 @@ import json
 import os
 import shutil
 import subprocess
+import sys
 import tempfile
 import urllib.error
 import urllib.request
@@ -81,6 +82,22 @@ def _api(url: str, token: str, accept: str) -> bytes:
         raise M365Error(f"Cannot reach GitHub: {exc.reason}") from None
 
 
+def _find_uv() -> str | None:
+    """Find uv.exe, also when started from WSL (then the Windows PATH is not visible)."""
+    if found := (shutil.which("uv") or shutil.which("uv.exe")):
+        return found
+    parts = Path(sys.executable).resolve().parts
+    if "AppData" not in parts:
+        return None
+    home = Path(*parts[: parts.index("AppData")])
+    candidates = [
+        home / "AppData/Local/Microsoft/WinGet/Links/uv.exe",
+        *sorted((home / "AppData/Local/Microsoft/WinGet/Packages").glob("astral-sh.uv_*/uv.exe")),
+        home / ".local/bin/uv.exe",
+    ]
+    return next((str(c) for c in candidates if c.is_file()), None)
+
+
 def self_update(echo: Callable[[str], None]) -> None:
     """Update a wheel install to the latest GitHub release.
 
@@ -92,7 +109,7 @@ def self_update(echo: Callable[[str], None]) -> None:
         raise M365Error(
             f"This is a source install at {repo}. Update it from WSL with: bash scripts/update.sh"
         )
-    uv = shutil.which("uv") or shutil.which("uv.exe")
+    uv = _find_uv()
     if not uv:
         raise M365Error("uv not found on PATH. Install it first: winget install astral-sh.uv")
 

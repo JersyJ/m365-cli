@@ -1,6 +1,6 @@
 [project]
 name = "m365-cli"
-version = "0.1.0"
+version = "0.1.1"
 description = "Token-efficient Outlook (and later Teams) automation for AI agents: modular CLI + MCP server, no Graph app registration."
 readme = "README.md"
 requires-python = ">=3.13"
