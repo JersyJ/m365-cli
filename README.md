@@ -101,19 +101,19 @@ For a search across both mail and Teams, the agent combines `mail_find` and `tea
 
 ### First-time install
 
-1. Install **uv** and the **GitHub CLI** (the GitHub CLI is needed only while this repo is private):
+1. Install **uv** and **git**:
 
    ```powershell
-   winget install astral-sh.uv GitHub.cli
-   gh auth login
+   winget install astral-sh.uv Git.Git
    ```
 
-2. Download the latest release and install it as a tool. This puts the `m365` command on your PATH (`%USERPROFILE%\.local\bin\m365.exe`) with all dependencies:
+2. Install the tool (one command — it fetches the code and all dependencies, and puts `m365` on your PATH as `%USERPROFILE%\.local\bin\m365.exe`):
 
    ```powershell
-   gh release download --repo JersyJ/m365-cli --pattern '*.whl'
-   uv tool install m365_cli-*.whl
+   uv tool install git+https://github.com/JersyJ/m365-cli
    ```
+
+   (Alternative without git: download the `.whl` from the [latest release](https://github.com/JersyJ/m365-cli/releases/latest) and run `uv tool install <the .whl>`.)
 
 3. Sign in to classic Outlook (once), then test it:
 
@@ -133,7 +133,7 @@ For a search across both mail and Teams, the agent combines `mail_find` and `tea
 m365 update
 ```
 
-It checks the latest release, downloads the wheel and reinstalls it in the background (a few seconds). Check with `m365 version`. The token comes from `gh` or the `GH_TOKEN` variable; once the repo is public, no token is needed.
+It checks the latest release, downloads the wheel and reinstalls it in the background (a few seconds). Check with `m365 version`.
 
 ### For developers
 
