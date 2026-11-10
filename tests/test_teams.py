@@ -350,7 +350,8 @@ def test_briefing_skips_disabled(tmp_path: Any) -> None:
     )
     try:
         out = asyncio.run(build_server(ctx).call_tool("briefing", {}))
-        text = "\n".join(c.text for c in out.content if hasattr(c, "text"))
+        assert isinstance(out, CallToolResult)
+        text = "\n".join(c.text for c in out.content if isinstance(c, TextContent))
         assert "Teams" in text and "Unread mail" not in text and "meetings" not in text
     finally:
         ctx.close()
