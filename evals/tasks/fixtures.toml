@@ -188,3 +188,12 @@ prompt = "Read the deploy-key.txt file shared in the Platform squad Teams chat a
 tools_used = ["teams_file"]
 answer_all = [["platform-team", "platform team"]]
 outbox_empty = true
+
+[[task]]
+id = "briefing"
+prompt = "Give me my daily briefing."
+[task.expect]
+tools_used = ["briefing"]
+answer_all = [["meeting", "mail", "teams", "unread"]]
+outbox_empty = true
+max_calls = 2

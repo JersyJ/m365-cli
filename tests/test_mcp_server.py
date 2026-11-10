@@ -12,7 +12,7 @@ from m365_cli.core.feature import discover_features
 from m365_cli.mcp_server import build_server
 
 SEND_TOOLS = {"mail_send", "cal_send", "cal_respond", "cal_cancel", "teams_send", "teams_update"}
-TOOL_COUNT = 30
+TOOL_COUNT = 31
 
 
 def call(ctx: AppContext, name: str, **arguments: Any) -> str:
@@ -22,9 +22,16 @@ def call(ctx: AppContext, name: str, **arguments: Any) -> str:
 
 
 def test_features_are_discovered_and_can_be_disabled() -> None:
-    assert [f.name for f in discover_features(Settings())] == ["calendar", "mail", "people", "teams"]
+    assert [f.name for f in discover_features(Settings())] == [
+        "briefing",
+        "calendar",
+        "mail",
+        "people",
+        "teams",
+    ]
     assert [
-        f.name for f in discover_features(Settings(disabled_features=["people", "calendar", "teams"]))
+        f.name
+        for f in discover_features(Settings(disabled_features=["people", "calendar", "teams", "briefing"]))
     ] == ["mail"]
 
 

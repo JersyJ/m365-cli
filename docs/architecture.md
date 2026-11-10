@@ -14,7 +14,7 @@ src/m365_cli/
 
 ## Rules
 
-* A feature uses `core` and `backends`. A feature never uses another feature.
+* A feature uses `core` and `backends`. A feature never uses another feature, except the `briefing` aggregator, which calls the public `*_api` of mail, calendar and Teams and degrades gracefully when one is disabled or unavailable.
 * `api.py` defines the interface. `service.py` (Outlook or Teams) and `fake.py` (fake backend) supply it.
 * `rules.py` has the logic that all backends share. `render.py` makes the short text.
 * `cli.py` and `mcp.py` are thin adapters. They do not contain logic.

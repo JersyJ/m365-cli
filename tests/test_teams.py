@@ -328,3 +328,29 @@ def test_file_entries() -> None:
         {"name": "report.pdf", "type": "pdf", "url": "https://x/Documents/r.pdf", "base": "https://x/"}
     ]
     assert rules.file_entries({"files": "[]"}) == []
+
+
+def test_briefing_composes_sections(fake_ctx: AppContext) -> None:
+    out = call(fake_ctx, "briefing")
+    assert "Briefing for" in out
+    assert "Unread mail" in out
+    assert "Teams" in out and ("mentioned you" in out or "Unread conversations" in out)
+
+
+def test_briefing_skips_disabled(tmp_path: Any) -> None:
+    from m365_cli.core.config import Settings as _Settings
+
+    ctx = AppContext(
+        _Settings(
+            backend="fake",
+            fake_state=tmp_path / "s.json",
+            data_dir=tmp_path,
+            disabled_features=["mail", "calendar"],
+        )
+    )
+    try:
+        out = asyncio.run(build_server(ctx).call_tool("briefing", {}))
+        text = "\n".join(c.text for c in out.content if hasattr(c, "text"))
+        assert "Teams" in text and "Unread mail" not in text and "meetings" not in text
+    finally:
+        ctx.close()

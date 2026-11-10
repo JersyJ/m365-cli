@@ -43,6 +43,12 @@ A reply to a mail in another mailbox goes out from that mailbox.
 | `cal_cancel` | `m365 calendar cancel` | Cancels a meeting that you organize, or deletes a personal appointment. |
 | `cal_cleanup` | `m365 calendar cleanup` | Removes canceled meetings of other people from your calendar. It notifies nobody. |
 
+### Briefing
+
+| MCP tool | CLI | What it does |
+|---|---|---|
+| `briefing` | `m365 briefing` | One "what needs me today" summary across calendar, mail and Teams: today's meetings, unread and awaiting mail, and Teams mentions and unread. |
+
 ### People
 
 | MCP tool | CLI | What it does |
@@ -157,7 +163,7 @@ teams_port = 9222
 
 | Key | Meaning |
 |---|---|
-| `disabled_features` | Features to remove (`mail`, `calendar`, `people`, `teams`). Fewer tools use fewer tokens. |
+| `disabled_features` | Features to remove (`mail`, `calendar`, `people`, `teams`, `briefing`). Fewer tools use fewer tokens. |
 | `signature_new`, `signature_reply` | `"auto"` (the Outlook default), `"none"`, or the name of an Outlook signature. |
 | `signoff` | Text that the tool adds to each text that it sends. |
 | `list_limit` | Number of items in a list (default 15). |
