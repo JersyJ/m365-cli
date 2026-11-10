@@ -121,7 +121,11 @@ For a search across both mail and Teams, the agent combines `mail_find` and `tea
    m365 mail list -n 5
    ```
 
-4. Turn on Teams if you want it, and connect your agent — the next sections.
+4. Turn on Teams (optional). Run `m365 teams browser` — it starts Chrome off-screen with its own profile in `%LOCALAPPDATA%\m365-cli\chrome-teams`. On a work-joined PC with the Single Sign On extension, Teams signs in by itself; the output shows `"skype"` and `"me"` when it is ready. If a sign-in window appears instead (no SSO), sign in once with your work account, then run `m365 teams browser` again.
+
+   After this, the tool starts the browser off-screen whenever it needs Teams. Keep the browser open if you use Teams often: a cold start takes about 20 seconds.
+
+5. Connect your agent — see the next sections.
 
 ### Update
 
@@ -130,14 +134,6 @@ m365 update
 ```
 
 It checks the latest release, downloads the wheel and reinstalls it in the background (a few seconds). Check with `m365 version`. The token comes from `gh` or the `GH_TOKEN` variable; once the repo is public, no token is needed.
-
-### Turn on Teams
-
-1. Run `m365 teams browser`. The tool starts Chrome off-screen with its own profile in `%LOCALAPPDATA%\m365-cli\chrome-teams`.
-2. On a work-joined PC with the Single Sign On extension, Teams signs in by itself. The output shows `"skype"` and `"me"` when it is ready — you are done.
-3. If it instead shows a sign-in window (no SSO), sign in once with your work account, then run `m365 teams browser` again.
-
-After this, the tool starts the browser off-screen whenever it needs Teams. Keep the browser open if you use Teams often: a cold start takes about 20 seconds.
 
 ### For developers
 
