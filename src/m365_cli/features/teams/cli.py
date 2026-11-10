@@ -96,8 +96,24 @@ def _read_commands(app: typer.Typer, api: Callable[[], TeamsApi], get_ctx: Conte
         typer.echo(render.presence(api().status(who)))
 
     @app.command()
-    def browser() -> None:
+    def browser(
+        install_sso: Annotated[
+            bool,
+            typer.Option(
+                "--install-sso",
+                help="Open the Web Store page of the Microsoft Single Sign On extension "
+                "in the Teams browser, so you can add it with one click.",
+            ),
+        ] = False,
+    ) -> None:
         """Start the Teams browser if needed and show its sign-in state (no token values)."""
+        if install_sso:
+            get_ctx().teams.open_sso_install()
+            typer.echo(
+                "The Web Store page is open in the Teams browser. "
+                "Click 'Add to Chrome', then sign in to Teams."
+            )
+            return
         typer.echo(json.dumps(get_ctx().teams.status(), indent=1, ensure_ascii=False))
 
 

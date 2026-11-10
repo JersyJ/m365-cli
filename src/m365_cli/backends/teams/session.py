@@ -17,6 +17,9 @@ from m365_cli.backends.teams.cdp import CdpConnection
 from m365_cli.core.errors import BackendUnavailableError, M365Error, NotFoundError
 
 TEAMS_URL = "https://teams.cloud.microsoft/"
+SSO_STORE_URL = (
+    "https://chromewebstore.google.com/detail/microsoft-single-sign-on/ppnbnpeolgkicgegkbkbjmhlideopiji"
+)
 TEAMS_HOSTS = ("teams.cloud.microsoft", "teams.microsoft.com", "teams.chat.microsoft.com")
 LOGIN_HOSTS = ("login.microsoftonline.com", "login.microsoft.com", "login.live.com")
 _HOOK_VERSION = 6
@@ -174,6 +177,23 @@ class TeamsSession:
         with self._lock:
             return self._ready_cdp().evaluate("window.__m365cli.status()")
 
+    def open_sso_install(self) -> None:
+        """Open the Web Store page of the Microsoft Single Sign On extension in a visible window.
+
+        Chrome does not allow a silent extension install (only an admin policy can force one),
+        so the user adds it with one click on this page.
+        """
+        with self._lock:
+            if self._tabs() is None:
+                self._start_browser()
+                self._wait_for_tabs()
+            tab = self._open_tab(SSO_STORE_URL)
+            cdp = CdpConnection(str(tab["webSocketDebuggerUrl"]))
+            try:
+                self._show_window(cdp)
+            finally:
+                cdp.close()
+
     def close(self) -> None:
         """Disconnect from the browser; the browser keeps running."""
         with self._lock:
@@ -272,8 +292,8 @@ class TeamsSession:
             "or the port is used by another program)."
         )
 
-    def _open_tab(self) -> dict[str, Any]:
-        url = self._endpoint("/json/new?" + urllib.parse.quote(TEAMS_URL, safe=""))
+    def _open_tab(self, target_url: str = TEAMS_URL) -> dict[str, Any]:
+        url = self._endpoint("/json/new?" + urllib.parse.quote(target_url, safe=""))
         request = urllib.request.Request(url, method="PUT")
         try:
             with urllib.request.urlopen(request, timeout=5) as response:
