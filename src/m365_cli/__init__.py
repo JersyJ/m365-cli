@@ -1,4 +1,4 @@
-"""m365-cli: modular, token-efficient Microsoft 365 automation (classic Outlook today, Teams next)."""
+"""m365-cli: modular, token-efficient Microsoft 365 automation (classic Outlook and Teams web)."""
 
 from importlib.metadata import version
 

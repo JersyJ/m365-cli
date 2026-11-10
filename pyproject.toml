@@ -1,8 +1,10 @@
 [project]
 name = "m365-cli"
 version = "0.1.2"
-description = "Token-efficient Outlook (and later Teams) automation for AI agents: modular CLI + MCP server, no Graph app registration."
+description = "Token-efficient Outlook mail, calendar and Teams for AI agents: modular CLI + MCP server, no Graph app registration."
 readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
 requires-python = ">=3.13"
 dependencies = [
     "markdown-it-py>=4.2.0",
@@ -13,6 +15,10 @@ dependencies = [
     "typer>=0.28.0",
     "websockets>=15",
 ]
+
+[project.urls]
+Repository = "https://github.com/JersyJ/m365-cli"
+Releases = "https://github.com/JersyJ/m365-cli/releases"
 
 [project.scripts]
 m365 = "m365_cli.cli:main"
