@@ -126,3 +126,31 @@ def register_mcp(server: MCPServer, get_ctx: ContextProvider) -> None:
         The user is asked to approve every call; a per-minute send limit applies.
         """
         return api().send(draft_ref, send_at=parse_when(send_at) if send_at else None)
+
+    @server.tool(title="Mark Teams chat read", annotations=LOCAL_WRITE, structured_output=False)
+    @tool_errors
+    def teams_mark_read(chat: ChatArg) -> str:
+        """Mark a chat or channel read up to its newest message. Only your read state changes."""
+        return api().mark_read(chat)
+
+    @server.tool(title="Update Teams message", annotations=SENDS, meta=SEND_META, structured_output=False)
+    @tool_errors
+    def teams_update(
+        message_ref: Annotated[str, Field(description="Message ref (p:…) from teams_read.")],
+        react: Annotated[
+            str | None,
+            Field(description="Add a reaction: like, heart, laugh, surprised, sad, angry."),
+        ] = None,
+        remove_react: Annotated[
+            bool, Field(description="Remove that reaction instead of adding it.")
+        ] = False,
+        edit: Annotated[str | None, Field(description="New text for your own message (Markdown).")] = None,
+        delete: Annotated[bool, Field(description="Delete your own message.")] = False,
+    ) -> str:
+        """React to a message, or edit/delete one of your own. Visible to others, so it needs approval.
+
+        Give exactly one of react, edit or delete. The user is asked before each call.
+        """
+        return api().update_message(
+            message_ref, react=react, remove_react=remove_react, edit=edit, delete=delete
+        )

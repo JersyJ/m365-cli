@@ -209,3 +209,37 @@ def test_presence_label_and_parse() -> None:
     assert parsed["status"] == "Out of office" and parsed["out_of_office"] is True
     assert parsed["ooo_note"] == "Back Mon" and parsed["message"] == "Focusing"
     assert parsed["available"] is False and parsed["device"] == "Mobile"
+
+
+def test_fake_mark_read_and_message_actions(fake_ctx: AppContext) -> None:
+    assert "*unread*" in call(fake_ctx, "teams_find")
+    page = call(fake_ctx, "teams_read", chat="Jana")
+    assert "Marked" in call(fake_ctx, "teams_mark_read", chat="Jana")
+    jana = next(c for c in fake_ctx.fake.state.teams_chats if c.title == "Jana Nováková")
+    assert jana.unread is False
+    ref = next(
+        lines[i - 1].split("]")[0].lstrip("[")
+        for lines in [page.splitlines()]
+        for i, line in enumerate(lines)
+        if "NAT" in line
+    )
+    assert "Reacted like" in call(fake_ctx, "teams_update", message_ref=ref, react="thumbsup")
+    msg = next(m for c in fake_ctx.fake.state.teams_chats for m in c.messages if m.id == "1002")
+    assert msg.reactions.get("like") == 2
+    assert "edited" in call(fake_ctx, "teams_update", message_ref=ref, edit="Approved.").lower()
+    assert next(m for c in fake_ctx.fake.state.teams_chats for m in c.messages if m.id == "1002").edited
+    assert "deleted" in call(fake_ctx, "teams_update", message_ref=ref, delete=True).lower()
+    assert any(o.action == "teams_delete" for o in fake_ctx.fake.state.outbox)
+
+
+def test_update_message_requires_one_action(fake_ctx: AppContext) -> None:
+    page = call(fake_ctx, "teams_read", chat="Jana")
+    ref = page.splitlines()[2].split("]")[0].lstrip("[")
+    with pytest.raises(ToolError, match="exactly one"):
+        asyncio.run(build_server(fake_ctx).call_tool("teams_update", {"message_ref": ref}))
+
+
+def test_reaction_key() -> None:
+    assert rules.reaction_key("thumbsup") == "like"
+    assert rules.reaction_key("Heart") == "heart"
+    assert rules.reaction_key("1f525_fire") == "1f525_fire"

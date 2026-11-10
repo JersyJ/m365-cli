@@ -13,6 +13,7 @@ from typing import Any
 from m365_cli.core.errors import InvalidInputError
 from m365_cli.core.markup import BodyFormat, to_html, to_text
 from m365_cli.core.text import one_line, sanitize
+from m365_cli.core.timeutil import now
 from m365_cli.features.teams.models import ChatKind, Member
 
 KIND_BY_PRODUCT: dict[str, ChatKind] = {
@@ -520,3 +521,40 @@ def parse_presence(raw: dict[str, Any]) -> dict[str, Any]:
         "last_active": parse_time(raw.get("lastActiveTime")),
         "device": str(raw.get("deviceType") or ""),
     }
+
+
+REACTION_KEYS = {
+    "like": "like",
+    "thumbsup": "like",
+    "+1": "like",
+    "heart": "heart",
+    "love": "heart",
+    "laugh": "laugh",
+    "haha": "laugh",
+    "surprised": "surprised",
+    "wow": "surprised",
+    "sad": "sad",
+    "angry": "angry",
+}
+
+
+def reaction_key(name: str) -> str:
+    """Teams reaction key for a name; standard names map directly, others are lowercased."""
+    key = name.strip().lower()
+    return REACTION_KEYS.get(key, key)
+
+
+def edit_payload(content_html: str, message_id: str, display_name: str) -> dict[str, Any]:
+    """Body for editing one of your own messages (`skypeeditedid` must equal the message id)."""
+    return {
+        "content": content_html,
+        "messagetype": "RichText/Html",
+        "contenttype": "text",
+        "skypeeditedid": message_id,
+        "imdisplayname": display_name,
+    }
+
+
+def consumption_horizon(message_id: str) -> str:
+    """A read-marker value ('<message id>;<now ms>;<client id>') up to and including `message_id`."""
+    return f"{message_id};{int(now().timestamp() * 1000)};{client_message_id()}"

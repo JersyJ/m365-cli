@@ -58,6 +58,8 @@ A reply to a mail in another mailbox goes out from that mailbox.
 | `teams_draft` | `m365 teams write` | Prepares a message, a reply (with quote) or a first message to a person. The body is Markdown. `@[Name]` mentions a chat member. |
 | `teams_send` | `m365 teams send` | Sends a draft now, or at a later time (`send_at`). |
 | `teams_status` | `m365 teams status` | Shows a colleague's live Teams presence (available, busy, in a meeting, away, out of office, offline), status note and card. |
+| `teams_mark_read` | `m365 teams mark-read` | Marks a chat or channel read up to its newest message (only your read state). |
+| `teams_update` | `m365 teams react` / `edit` / `delete` | Reacts to a message, or edits/deletes one of your own. Visible to others, so it needs approval. |
 
 A chat can be a ref (`c:…`) or a name: the chat title, or the other person of a 1:1 chat.
 

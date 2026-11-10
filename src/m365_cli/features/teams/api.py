@@ -74,6 +74,27 @@ class TeamsApi(Protocol):
         """
         ...
 
+    def mark_read(self, chat: str) -> str:
+        """Mark a chat read up to its newest message; returns a short confirmation."""
+        ...
+
+    def update_message(
+        self,
+        message_ref: str,
+        *,
+        react: str | None = None,
+        remove_react: bool = False,
+        edit: str | None = None,
+        delete: bool = False,
+        body_format: BodyFormat = "markdown",
+    ) -> str:
+        """React to, edit, or delete a message. Edit and delete work only on your own messages.
+
+        Raises:
+            InvalidInputError: No action given, or more than one kind at once.
+        """
+        ...
+
 
 def teams_api(ctx: AppContext) -> TeamsApi:
     """Teams operations of the active backend."""

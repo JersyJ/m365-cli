@@ -288,3 +288,59 @@ class FakeTeamsService:
             ooo_note=person.teams_ooo,
             message=person.teams_note,
         )
+
+    def mark_read(self, chat: str) -> str:
+        """See `TeamsApi.mark_read`."""
+        c = self._resolve(chat)
+        with self._store.edit() as state:
+            fc = next(x for x in state.teams_chats if x.id == c.id)
+            fc.unread = False
+        return f"Marked {c.title} read."
+
+    def update_message(
+        self,
+        message_ref: str,
+        *,
+        react: str | None = None,
+        remove_react: bool = False,
+        edit: str | None = None,
+        delete: bool = False,
+        body_format: BodyFormat = "markdown",
+    ) -> str:
+        """See `TeamsApi.update_message`."""
+        ref = self._refs.get(message_ref, kinds="p")
+        chosen = [bool(react or remove_react), edit is not None, delete]
+        if sum(chosen) != 1:
+            raise InvalidInputError("Give exactly one of: react, edit, delete.")
+        chat = self._fake_chat(ref.container_id.split(";", 1)[0])
+        with self._store.edit() as state:
+            fc = next(x for x in state.teams_chats if x.id == chat.id)
+            msg = next((m for m in fc.messages if m.id == ref.item_id), None)
+            if msg is None:
+                raise NotFoundError(f"Message {message_ref} not found.")
+            if delete:
+                self._ctx.audit.guard("teams_delete")
+                msg.deleted = True
+                msg.html = ""
+                action, summary, result = "teams_delete", f"message {message_ref}", "Message deleted."
+            elif edit is not None:
+                rules.check_body(edit)
+                self._ctx.audit.guard("teams_edit")
+                content, _ = rules.body_html(edit, body_format, [])
+                msg.html = content
+                msg.edited = True
+                action, summary, result = "teams_edit", f"message {message_ref}", "Message edited."
+            else:
+                key = rules.reaction_key(react or "")
+                self._ctx.audit.guard("teams_react")
+                if remove_react:
+                    msg.reactions.pop(key, None)
+                    action, summary, result = "teams_react", f"removed {key}", f"Removed reaction {key}."
+                else:
+                    msg.reactions[key] = msg.reactions.get(key, 0) + 1
+                    action, summary, result = "teams_react", f"{key} on {message_ref}", f"Reacted {key}."
+            state.outbox.append(
+                Outgoing(at=now(), action=action, item_id=chat.id, summary=summary, recipients=[chat.title])
+            )
+        self._ctx.audit.record(action, summary)
+        return result

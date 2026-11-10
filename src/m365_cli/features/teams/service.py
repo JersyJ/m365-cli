@@ -438,6 +438,79 @@ class TeamsService:
             **rules.parse_presence(raw),
         )
 
+    def mark_read(self, chat: str) -> str:
+        """See `TeamsApi.mark_read`."""
+        target = self._resolve(chat)
+        last = self._last_message_id(target.id)
+        if not last:
+            return f"{target.title}: no messages to mark."
+        self._session.request(
+            CHAT,
+            f"/v1/users/ME/conversations/{_q(target.id)}/properties?name=consumptionhorizon",
+            method="PUT",
+            body={"consumptionhorizon": rules.consumption_horizon(last)},
+        )
+        return f"Marked {target.title} read."
+
+    def _last_message_id(self, conv_id: str) -> str:
+        path = (
+            f"/v1/users/ME/conversations/{_q(conv_id)}/messages?view={_MESSAGE_VIEW}&pageSize=1&startTime=1"
+        )
+        reply = self._session.request(CHAT, path) or {}
+        messages = reply.get("messages") or []
+        return str(messages[0].get("id")) if messages else ""
+
+    def update_message(
+        self,
+        message_ref: str,
+        *,
+        react: str | None = None,
+        remove_react: bool = False,
+        edit: str | None = None,
+        delete: bool = False,
+        body_format: BodyFormat = "markdown",
+    ) -> str:
+        """See `TeamsApi.update_message`."""
+        ref = self._refs.get(message_ref, kinds="p")
+        conv_id = ref.container_id.split(";", 1)[0]
+        base = f"/v1/users/ME/conversations/{_q(conv_id)}/messages/{ref.item_id}"
+        chosen = [bool(react or remove_react), edit is not None, delete]
+        if sum(chosen) != 1:
+            raise InvalidInputError("Give exactly one of: react, edit, delete.")
+        if delete:
+            self._ctx.audit.guard("teams_delete")
+            self._session.request(CHAT, f"{base}?behavior=softDelete", method="DELETE")
+            self._ctx.audit.record("teams_delete", f"message {message_ref}")
+            return "Message deleted."
+        if edit is not None:
+            rules.check_body(edit)
+            self._ctx.audit.guard("teams_edit")
+            content, _ = rules.body_html(edit, body_format, [])
+            self._session.request(
+                CHAT, base, method="PUT", body=rules.edit_payload(content, ref.item_id, self._me.name)
+            )
+            self._ctx.audit.record("teams_edit", f"message {message_ref}")
+            return "Message edited."
+        key = rules.reaction_key(react or "")
+        self._ctx.audit.guard("teams_react")
+        if remove_react:
+            self._session.request(
+                CHAT,
+                f"{base}/properties?name=emotions",
+                method="DELETE",
+                body={"emotions": {"key": key, "value": ref.item_id}},
+            )
+            self._ctx.audit.record("teams_react", f"removed {key} on {message_ref}")
+            return f"Removed reaction {key}."
+        self._session.request(
+            CHAT,
+            f"{base}/properties?name=emotions",
+            method="PUT",
+            body={"emotions": {"key": key, "value": ref.item_id}},
+        )
+        self._ctx.audit.record("teams_react", f"{key} on {message_ref}")
+        return f"Reacted {key}."
+
     def _resolve_contact(self, query: str) -> dict[str, str]:
         """Resolve a colleague by name or email to an MRI and directory card via the people directory."""
         if "@" in query:

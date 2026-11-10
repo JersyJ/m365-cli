@@ -86,6 +86,47 @@ def build_cli(get_ctx: ContextProvider) -> typer.Typer:
         """Live Teams presence and card of a colleague."""
         typer.echo(render.presence(api().status(who)))
 
+    @app.command("mark-read")
+    def mark_read(chat: ChatArg) -> None:
+        """Mark a chat read up to its newest message."""
+        typer.echo(api().mark_read(chat))
+
+    @app.command()
+    def react(
+        message_ref: Annotated[str, typer.Argument(help="Message ref (p:…).")],
+        emoji: Annotated[str, typer.Argument(help="like, heart, laugh, surprised, sad, angry.")],
+        remove: Annotated[bool, typer.Option("--remove", help="Remove the reaction.")] = False,
+        yes: Yes = False,
+    ) -> None:
+        """React to a message (or remove the reaction)."""
+        if not yes and not typer.confirm(f"{'Remove' if remove else 'Add'} reaction {emoji}?", default=False):
+            typer.echo("Cancelled.")
+            return
+        typer.echo(api().update_message(message_ref, react=emoji, remove_react=remove))
+
+    @app.command()
+    def edit(
+        message_ref: Annotated[str, typer.Argument(help="Message ref (p:…) of your own message.")],
+        body: Annotated[str, typer.Argument(help="New text (Markdown); '-' reads stdin.")],
+        yes: Yes = False,
+    ) -> None:
+        """Edit one of your own messages."""
+        if not yes and not typer.confirm("Edit this message?", default=False):
+            typer.echo("Cancelled.")
+            return
+        typer.echo(api().update_message(message_ref, edit=read_body(body)))
+
+    @app.command()
+    def delete(
+        message_ref: Annotated[str, typer.Argument(help="Message ref (p:…) of your own message.")],
+        yes: Yes = False,
+    ) -> None:
+        """Delete one of your own messages."""
+        if not yes and not typer.confirm("Delete this message?", default=False):
+            typer.echo("Cancelled.")
+            return
+        typer.echo(api().update_message(message_ref, delete=True))
+
     @app.command()
     def browser() -> None:
         """Start the Teams browser if needed and show its sign-in state (no token values)."""
