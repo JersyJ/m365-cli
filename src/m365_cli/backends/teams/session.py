@@ -25,6 +25,7 @@ LOGIN_HOSTS = ("login.microsoftonline.com", "login.microsoft.com", "login.live.c
 _HOOK_VERSION = 6
 _START_WAIT = 25
 _READY_WAIT = 60
+_NO_TOKEN_WAIT = 15
 _MAX_RETRIES = 3
 _MAX_RETRY_WAIT = 20.0
 
@@ -231,11 +232,18 @@ class TeamsSession:
             and bool(state.get("me"))
         )
 
+    @staticmethod
+    def _signed_in_without_skype(cdp: CdpConnection) -> bool:
+        state = cdp.evaluate("window.__m365cli ? window.__m365cli.status() : null")
+        return isinstance(state, dict) and bool(state.get("me")) and not state.get("skype")
+
     def _install_hook(self, cdp: CdpConnection) -> None:
         cdp.call("Page.enable")
         cdp.call("Page.addScriptToEvaluateOnNewDocument", {"source": _hook_source()})
         cdp.call("Page.navigate", {"url": TEAMS_URL})
-        deadline = time.monotonic() + _READY_WAIT
+        started = time.monotonic()
+        deadline = started + _READY_WAIT
+        cleared = False
         while time.monotonic() < deadline:
             time.sleep(1.5)
             try:
@@ -248,6 +256,15 @@ class TeamsSession:
                     )
                 if self._hook_ready(cdp):
                     return
+                # Signed in, but Teams reused a cached skype token and never called
+                # authz, so the hook saw none. Drop the site data and reload once.
+                if not cleared and time.monotonic() - started > _NO_TOKEN_WAIT and self._signed_in_without_skype(cdp):
+                    cleared = True
+                    cdp.call("Storage.clearDataForOrigin", {
+                        "origin": f"https://{_host(href)}",
+                        "storageTypes": "local_storage,indexeddb,cache_storage,service_workers",
+                    })
+                    cdp.call("Page.navigate", {"url": TEAMS_URL})
             except TeamsAuthError:
                 raise
             except BackendUnavailableError:
