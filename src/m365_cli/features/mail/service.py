@@ -54,6 +54,8 @@ from m365_cli.features.mail.rules import (
 )
 
 _BODY_START = re.compile(r"<body[^>]*>", re.I)
+_SECTION_START = re.compile(r"\s*<div class=\"?WordSection1\"?>", re.I)
+_EMPTY_PARAGRAPHS = re.compile(r"(?:\s*<p\b[^>]*>(?:\s|&nbsp;|</?span[^>]*>|</?o:p>)*</p>)+", re.I)
 _PREVIEW_CHARS = 160
 _THREAD_BODY_CHARS = 2000
 _FLAGS = {"set": OlFlagStatus.MARKED, "clear": OlFlagStatus.NONE, "complete": OlFlagStatus.COMPLETE}
@@ -550,13 +552,25 @@ def _labels(ol: Outlook, item: Com, rtype: OlRecipientType) -> list[str]:
 def _insert_above_original(item: Com, fragment: str, text: str, signature: Signature | None) -> None:
     """Insert our HTML above the quoted original (plain text for plain-text originals)."""
     if item.BodyFormat == _HTML_FORMAT:
-        body = item.HTMLBody
-        m = _BODY_START.search(body)
-        at = m.end() if m else 0
-        item.HTMLBody = f"{body[:at]}{fragment}<br>{body[at:]}"
+        item.HTMLBody = _reply_html(item.HTMLBody, fragment)
     else:
         sig = f"\n\n{signature.text}" if signature else ""
         item.Body = f"{text}{sig}\n\n{item.Body}"
+
+
+def _reply_html(body: str, fragment: str) -> str:
+    """Put `fragment` where Outlook would put the cursor in a new reply.
+
+    Outlook starts a reply with empty paragraphs above its signature. They are replaced, so the
+    text is followed by one paragraph gap, as when you type the reply yourself.
+    """
+    m = _BODY_START.search(body)
+    at = m.end() if m else 0
+    if section := _SECTION_START.match(body, at):
+        at = section.end()
+    if empty := _EMPTY_PARAGRAPHS.match(body, at):
+        return f"{body[:at]}{fragment}{body[empty.end() :]}"
+    return f"{body[:at]}{fragment}<br>{body[at:]}"
 
 
 def _move_to_drafts_of(ol: Outlook, item: Com, store_id: str) -> Com:

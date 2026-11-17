@@ -121,3 +121,15 @@ def test_repeat_rules_and_recurring_draft(fake_ctx: AppContext) -> None:
         start="2026-11-16 09:00",
         repeat={"every": "day", "count": 5},
     )
+
+
+def test_reply_text_replaces_outlooks_empty_paragraphs() -> None:
+    from m365_cli.features.mail.service import _reply_html
+
+    empty = "<p class=MsoNormal><span style='x'><o:p>&nbsp;</o:p></span></p>"
+    signature = "<div><p class=MsoNormal>Best regards,</p></div>"
+    body = f"<html><body lang=EN-US><div class=WordSection1>{empty}{empty}{signature}</div></body></html>"
+    assert _reply_html(body, "<p>Hi</p>") == (
+        f"<html><body lang=EN-US><div class=WordSection1><p>Hi</p>{signature}</div></body></html>"
+    )
+    assert _reply_html("<body><p>Old</p></body>", "<p>Hi</p>") == "<body><p>Hi</p><br><p>Old</p></body>"
