@@ -204,13 +204,17 @@ def register_mcp(server: MCPServer, get_ctx: ContextProvider) -> None:
         event_ref: Annotated[str, Field(description="Event ref e:… or meeting-request ref m:….")],
         response: Annotated[Response, Field(description="accept | tentative | decline.")],
         comment: Annotated[str, Field(description="Optional note to the organizer.")] = "",
+        series: Annotated[
+            bool, Field(description="true = answer the whole recurring series, not only this date.")
+        ] = False,
     ) -> str:
         """Accept / tentative / decline a meeting; sends the response to the organizer.
 
         For a recurring meeting, an e: ref from cal_find is one occurrence, so the response applies
-        only to that date. Only after user approval; the user is asked to approve every call.
+        only to that date unless `series` is true. Only after user approval; the user is asked to
+        approve every call.
         """
-        return api().respond(event_ref, response, comment=comment)
+        return api().respond(event_ref, response, comment=comment, series=series)
 
     @server.tool(title="Cancel meeting", annotations=SENDS, meta=SEND_META, structured_output=False)
     @tool_errors

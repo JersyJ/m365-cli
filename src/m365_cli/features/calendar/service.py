@@ -88,6 +88,21 @@ class CalendarService:
         item = ol.item(BackendId(bid.kind, entry_id, bid.container_id))
         return _occurrence(ol, item, datetime.fromisoformat(occurrence)) if occurrence else item
 
+    def _series(self, ol: Outlook, bid: BackendId) -> Com:
+        """The master of the recurring series that an e: ref (occurrence) or m: ref (request) belongs to.
+
+        Raises:
+            InvalidInputError: The meeting does not repeat.
+        """
+        if bid.kind == MEETING_MAIL_KIND:
+            master = self._appointment(ol, bid)
+        else:
+            entry_id = bid.item_id.partition(_OCCURRENCE_SEP)[0]
+            master = ol.item(BackendId(bid.kind, entry_id, bid.container_id))
+        if not get(master, "IsRecurring", False):
+            raise InvalidInputError("This meeting is not part of a series.")
+        return master
+
     def find(
         self,
         start: datetime,
@@ -334,18 +349,20 @@ class CalendarService:
         self._audit.record("cal_send", summary)
         return f"Sent {summary}."
 
-    def respond(self, ref: str, response: Response, *, comment: str = "") -> str:
+    def respond(self, ref: str, response: Response, *, comment: str = "", series: bool = False) -> str:
         """Accept / tentative / decline; sends the response to the organizer.
 
+        `series` answers the whole recurring series instead of one occurrence.
+
         Raises:
-            InvalidInputError: You organize this meeting.
+            InvalidInputError: You organize this meeting, or `series` for a meeting that does not repeat.
             RateLimitError: Too many sends in the last minute.
         """
         bid = self._refs.get(ref, kinds=KIND + MEETING_MAIL_KIND)
         self._audit.guard("cal_respond")
 
         def run(ol: Outlook) -> tuple[str, bool]:
-            appointment = self._appointment(ol, bid)
+            appointment = self._series(ol, bid) if series else self._appointment(ol, bid)
             if get(appointment, "ResponseStatus", 0) == OlResponseStatus.ORGANIZED:
                 raise InvalidInputError("You organize this meeting; use cancel instead.")
             reply = appointment.Respond(_RESPONSES[response], _NO_UI)
@@ -358,6 +375,7 @@ class CalendarService:
             return str(appointment.Subject), True
 
         subject, sent = self._session.run(run)
+        subject += " (whole series)" if series else ""
         if not sent:
             return f"Marked '{subject}' as {response} (no response requested)."
         self._audit.record("cal_respond", f"{response} '{subject}'")

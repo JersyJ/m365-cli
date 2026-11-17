@@ -40,7 +40,7 @@ A reply to a mail in another mailbox goes out from that mailbox.
 | `cal_draft` | `m365 calendar new` | Saves a meeting (not sent) or a personal appointment. `repeat` makes a recurring meeting. |
 | `cal_update` | `m365 calendar update` | Moves a meeting, or changes attendees, title or location. The attendees get no message yet. |
 | `cal_send` | `m365 calendar send` | Sends the invitation or the update of a meeting that you organize. |
-| `cal_respond` | `m365 calendar respond` | Accepts, tentatively accepts or declines a meeting. |
+| `cal_respond` | `m365 calendar respond` | Accepts, tentatively accepts or declines a meeting, or with `series` the whole series. |
 | `cal_cancel` | `m365 calendar cancel` | Cancels a meeting that you organize, or deletes a personal appointment. |
 | `cal_cleanup` | `m365 calendar cleanup` | Removes canceled meetings of other people from your calendar. It notifies nobody. |
 

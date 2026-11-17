@@ -57,7 +57,8 @@ _DEFERRED_SEND = "SystemTime 0x3FEF"
 _PROTECTED_CLASS = "rpmsg.message"
 _EXPAND_CLASS = (
     "SingleValueExtendedProperties($filter="
-    f"PropertyId eq '{_MESSAGE_CLASS}' or PropertyId eq '{_CONTENT_CLASS}')"
+    f"PropertyId eq '{_MESSAGE_CLASS}' or PropertyId eq '{_CONTENT_CLASS}' "
+    f"or PropertyId eq '{_DEFERRED_SEND}')"
 )
 _EXPAND_ATTACHMENTS = "Attachments($select=Name,Size,IsInline)"
 _SUMMARY = (
@@ -238,6 +239,7 @@ class WebMailService:
             preview=one_line(clean_body(str(m.get("BodyPreview") or "")), _PREVIEW_CHARS) if preview else "",
             folder=folder,
             protected=_is_protected(m),
+            scheduled=_scheduled(m),
         )
 
     def _from(self, m: dict[str, Any], mailbox: str | None) -> dict[str, Any] | None:
@@ -691,7 +693,8 @@ class WebMailService:
     ) -> str:
         """Mark read/unread, flag, set categories, move or delete one or more mails; returns a summary.
 
-        Delete moves the mail to Deleted Items. Refs stay the same after a move.
+        Delete moves the mail to Deleted Items; a scheduled mail is removed instead, which cancels its
+        send. Refs stay the same after a move.
         """
         if not refs:
             raise InvalidInputError("No mails to update.")
@@ -707,10 +710,14 @@ class WebMailService:
             change["Categories"] = categories
         moved_refs: list[str] = []
         target_name = None
+        canceled = 0
         for item_id, mailbox in items:
             if change:
                 self._web.rest(f"/messages/{item_id}", method="PATCH", mailbox=mailbox, body=change)
-            if delete or move_to:
+            if delete and self._is_scheduled(item_id, mailbox):
+                self._web.rest(f"/messages/{item_id}", method="DELETE", mailbox=mailbox)
+                canceled += 1
+            elif delete or move_to:
                 target_id, target_name = self._folder("deleted" if delete else str(move_to), mailbox)
                 moved = (
                     self._web.rest(
@@ -722,7 +729,7 @@ class WebMailService:
                     or {}
                 )
                 moved_refs.append(self._ref(str(moved.get("Id") or item_id), mailbox))
-        return update_summary(
+        summary = update_summary(
             len(items),
             read=read,
             flag=flag,
@@ -731,6 +738,18 @@ class WebMailService:
             moved_refs=moved_refs,
             delete=delete,
         )
+        if canceled == len(items) and not change and not move_to:
+            return f"{canceled} scheduled mail(s): send canceled, mail removed."
+        note = f" {canceled} of them were scheduled: send canceled, mail removed." if canceled else ""
+        return summary + note
+
+    def _is_scheduled(self, item_id: str, mailbox: str | None) -> bool:
+        """True for a mail that was sent with send_at and still waits (it cannot be moved, only deleted)."""
+        path = (
+            f"/messages/{item_id}?$select=IsDraft"
+            f"&$expand=SingleValueExtendedProperties($filter=PropertyId eq '{_DEFERRED_SEND}')"
+        )
+        return _scheduled(self._web.rest(path, mailbox=mailbox) or {}) is not None
 
     def _attachment_list(self, item_id: str, mailbox: str | None) -> list[dict[str, Any]]:
         reply = (
@@ -835,6 +854,12 @@ def _property_key(property_id: str) -> str:
     if tag.lower().startswith("0x"):
         return f"{kind.lower()} {int(tag, 16)}"
     return property_id.strip().lower()
+
+
+def _scheduled(m: dict[str, Any]) -> datetime | None:
+    """Send time of a draft that was sent with send_at and still waits (None otherwise)."""
+    when = from_utc(_property(m, _DEFERRED_SEND)) if m.get("IsDraft") else None
+    return when if when is not None and when > now() else None
 
 
 def _kind(m: dict[str, Any]) -> str:

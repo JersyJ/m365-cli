@@ -161,6 +161,7 @@ class MailService:
             preview=one_line(clean_body(str(get(item, "Body", "") or "")), _PREVIEW_CHARS) if preview else "",
             folder=folder,
             protected=is_protected(item),
+            scheduled=_scheduled(item),
         )
 
     def select(self, query: MailQuery, *, max_items: int) -> list[str]:
@@ -508,6 +509,14 @@ class MailService:
             path = self._session.run(run)
             text, cut = truncate(clean_body(extract_text(path)), self._settings.body_max_chars)
             return AttachmentText(name=path.name, text=text, truncated=cut)
+
+
+def _scheduled(item: Com) -> datetime | None:
+    """Deferred delivery time of a mail that waits in the Outbox (None otherwise)."""
+    if get(item, "Sent", True):
+        return None
+    when = from_com(get(item, "DeferredDeliveryTime"))
+    return when if when is not None and when > now() else None
 
 
 def _has_real_attachments(item: Com) -> bool:

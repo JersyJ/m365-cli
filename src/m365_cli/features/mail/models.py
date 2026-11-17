@@ -48,7 +48,10 @@ class Attachment(_Model):
 
 
 class MailSummary(_Model):
-    """Mail in a list. `kind` is mail | meeting | report | other; `preview` is set on request."""
+    """Mail in a list. `kind` is mail | meeting | report | other; `preview` is set on request.
+
+    `scheduled` is the send time of a mail that is sent but waits for its scheduled time.
+    """
 
     ref: str
     received: datetime | None
@@ -61,6 +64,7 @@ class MailSummary(_Model):
     preview: str = ""
     folder: str = ""
     protected: bool = False
+    scheduled: datetime | None = None
 
 
 class MailMessage(MailSummary):
