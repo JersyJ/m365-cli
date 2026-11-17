@@ -21,7 +21,7 @@ Each MCP tool has a CLI command with the same function.
 | `mail_thread` | `m365 mail thread` | Shows a full conversation over all folders, from the first message to the last. |
 | `mail_waiting` | `m365 mail waiting` | Shows sent mails that have no reply after N days. |
 | `mail_mailboxes` | `m365 mail mailboxes` | Shows the mailboxes you can use: your mailbox, other accounts, shared mailboxes. |
-| `mail_draft` | `m365 mail new` / `reply` / `forward` | Saves a draft: new, reply, reply-all or forward. Adds your Outlook font and signature. The body is Markdown. |
+| `mail_draft` | `m365 mail new` / `reply` / `forward` | Saves a draft: new, reply, reply-all or forward. Adds your Outlook font and signature (on a reply or forward, Outlook's own reply signature). A reply to a mail in a shared mailbox is saved in that mailbox's Drafts. The body is Markdown. |
 | `mail_send` | `m365 mail send` | Sends a draft now, or at a later time (`send_at`). |
 | `mail_update` | `m365 mail update` | Marks read or unread, flags, sets categories, moves, deletes. Works on one mail, many refs, or all mails that agree with a filter. |
 | `mail_attachments` | `m365 mail attachments` | Lists or saves the attachments, or shows the text of a PDF, DOCX, PPTX, XLSX or text file. |
@@ -195,7 +195,7 @@ teams_port = 9222
 | Key | Meaning |
 |---|---|
 | `disabled_features` | Features to remove (`mail`, `calendar`, `people`, `teams`, `briefing`). Fewer tools use fewer tokens. |
-| `signature_new`, `signature_reply` | `"auto"` (the Outlook default), `"none"`, or the name of an Outlook signature. |
+| `signature_new`, `signature_reply` | `"auto"` (the Outlook default), `"none"`, or the name of an Outlook signature. `signature_reply` has no effect: on a reply or forward Outlook inserts its own reply signature, so set that one in Outlook. The key stays valid for older config files. |
 | `signoff` | Text that the tool adds to each text that it sends. |
 | `list_limit` | Number of items in a list (default 15). |
 | `body_max_chars` | Maximum length of a mail body in the result (default 6000). |

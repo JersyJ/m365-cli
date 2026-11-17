@@ -55,7 +55,7 @@ def test_draft_gets_signature_and_format(fake_ctx: AppContext) -> None:
     stored = next(m for m in fake_ctx.fake.state.mails if m.id == fake_ctx.refs.get(new.ref).item_id)
     assert stored.body.endswith("Example Corp")
     reply = mail.compose("reply", ref=mail.find(MailQuery(sender="petr")).items[0].ref, body="Ok")
-    assert reply.signature.startswith("reply")
+    assert reply.signature.startswith("reply") and "added by Outlook" in reply.signature
 
 
 def test_shared_mailbox_find_and_reply_on_behalf(fake_ctx: AppContext) -> None:
@@ -67,6 +67,8 @@ def test_shared_mailbox_find_and_reply_on_behalf(fake_ctx: AppContext) -> None:
     draft = mail.compose("reply", ref=shared[0].ref, body="Granted.")
     assert draft.from_mailbox == f"{SHARED_MAILBOX} (on behalf)"
     assert "From: Team Shared (on behalf)" in render.draft(draft)
+    assert draft.saved_in == f"{SHARED_MAILBOX} / Drafts"
+    assert f"Saved in: {SHARED_MAILBOX} / Drafts" in render.draft(draft)
     with pytest.raises(NotFoundError, match="Known:"):
         mail.find(MailQuery(mailbox="nonexistent"))
     assert "Team Shared (shared)" in call(fake_ctx, "mail_mailboxes")

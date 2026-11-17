@@ -224,14 +224,16 @@ class FakeMailService:
         """Save a draft (in Drafts) and return its preview. Never sends.
 
         The signature comes from `FakeState.signatures` ("new" / "reply"), like Outlook's defaults.
+        A reply always keeps the reply signature, because Outlook inserts that one itself, and a reply
+        to a mail in a shared mailbox is saved in that mailbox, like the Outlook backend does.
         """
         check_compose(mode, ref=ref, to=to, subject=subject)
         text = with_signoff(body, self._settings.signoff)
         kind = "new" if ref is None else "reply"
-        setting = getattr(self._settings, f"signature_{kind}")
         with self._store.edit() as state:
             source = self._mail(state, ref) if ref else None
-            signature = "" if setting.lower() == "none" else state.signatures.get(kind, "")
+            off = kind == "new" and self._settings.signature_new.lower() == "none"
+            signature = "" if off else state.signatures.get(kind, "")
             sender = (
                 resolve_mailbox(state, from_mailbox) if from_mailbox else (source.mailbox if source else "")
             )
@@ -270,10 +272,13 @@ class FakeMailService:
                 is_draft=True,
                 draft_mode=mode,
                 source_id=source.id if source else None,
+                mailbox=source.mailbox if source else "",
                 from_mailbox=sender,
                 attachments=[a for a in (source.attachments if source else []) if mode == "forward"],
             )
             state.mails.append(draft)
+            saved_in = f"{draft.mailbox or state.me.email} / Drafts"
+            added_by = ", added by Outlook" if source else ""
         return Draft(
             ref=self._ref(draft),
             mode=mode,
@@ -283,8 +288,9 @@ class FakeMailService:
             subject=title,
             text=text,
             body_format=body_format,
-            signature=f"{kind} ({len(signature.splitlines())} lines)" if signature else "",
+            signature=f"{kind} ({len(signature.splitlines())} lines{added_by})" if signature else "",
             from_mailbox=f"{draft.from_mailbox} (on behalf)" if draft.from_mailbox else "",
+            saved_in=saved_in,
             includes_original=source is not None,
             attachments=files,
         )

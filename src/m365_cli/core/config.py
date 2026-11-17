@@ -36,6 +36,7 @@ class Settings(BaseModel):
     environment variables M365_AGENT_BACKEND, M365_AGENT_FAKE_STATE and M365_AGENT_DATA_DIR.
 
     `signature_new` / `signature_reply` are "auto" (Outlook's default signature), "none", or a name.
+    `signature_reply` has no effect: on a reply or forward Outlook inserts its own reply signature.
 
     Example config.toml:
 
@@ -44,7 +45,7 @@ class Settings(BaseModel):
         body_max_chars = 4000
         signoff = "Sent with my assistant"
         signature_new = "auto"
-        signature_reply = "Short"
+        signature_reply = "auto"
         work_hours = [8, 17]
         max_sends_per_minute = 5
         teams_protected = ["All Company*", "*Announcements*"]

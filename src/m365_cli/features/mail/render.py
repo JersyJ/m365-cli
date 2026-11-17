@@ -70,6 +70,8 @@ def draft(d: Draft) -> str:
     lines = [f"DRAFT {d.ref} ({d.mode.replace('_', '-')}) - NOT SENT"]
     if d.from_mailbox:
         lines.append(f"From: {d.from_mailbox}")
+    if d.saved_in:
+        lines.append(f"Saved in: {d.saved_in}")
     lines.append("To: " + "; ".join(d.to))
     if d.cc:
         lines.append("Cc: " + "; ".join(d.cc))

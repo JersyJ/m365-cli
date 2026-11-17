@@ -306,10 +306,13 @@ class MailService:
         """Save a draft (in Drafts) and return its preview. Never sends.
 
         `from_mailbox` sends from another account of the profile, or on behalf of a shared mailbox.
-        A reply to a mail in another mailbox is sent from that mailbox automatically.
+        A reply to a mail in another mailbox is sent from that mailbox, and its draft is saved in that
+        mailbox's Drafts, because Outlook alone would save it in the default account's Drafts.
 
-        The body is converted to HTML in the user's Outlook font, and Outlook's default signature
-        (or the one set in the settings) is added, the same way Outlook does for a mail you write.
+        The body is converted to HTML in the user's Outlook font. A new mail gets Outlook's default
+        signature, or the one set in `signature_new`. On a reply or forward Outlook inserts its own
+        reply signature, so the tool adds none and the preview names Outlook's; `signature_reply` has
+        no effect.
 
         Raises:
             InvalidInputError: Arguments don't fit the mode, or an attachment file is missing.
@@ -329,12 +332,15 @@ class MailService:
         )
         accounts = self._session.run(lambda ol: {str(a.SmtpAddress).lower() for a in ol.ns.Accounts})
         account = sender if sender and sender.lower() in accounts else self._account()
-        signature = signature_for(kind, account, getattr(self._settings, f"signature_{kind}"))
-        # On a reply or forward, Outlook inserts the account's reply signature itself; adding our own
-        # would duplicate it, so we only add a signature on a new mail.
-        own_signature = signature if source is None else None
+        if source is None:
+            signature = signature_for(kind, account, self._settings.signature_new)
+            signature_label = signature.name if signature else ""
+        else:
+            signature = None
+            outlook = signature_for(kind, account, "auto")
+            signature_label = f"{outlook.name} (added by Outlook)" if outlook else ""
         style = mail_style("compose" if source is None else "reply")
-        fragment = styled(to_html(text, body_format), style) + (f"<br>{own_signature.html}" if own_signature else "")
+        fragment = styled(to_html(text, body_format), style) + (f"<br>{signature.html}" if signature else "")
 
         def run(ol: Outlook) -> Draft:
             if source is None:
@@ -349,7 +355,7 @@ class MailService:
                 }
                 item = actions[mode]()
                 _insert_above_original(
-                    item, _embed_images(item, fragment), to_text(text, body_format), own_signature
+                    item, _embed_images(item, fragment), to_text(text, body_format), signature
                 )
             sent_as = ol.set_sender(item, sender) if sender else ""
             if subject is not None:
@@ -368,15 +374,8 @@ class MailService:
                 item.Close(OL_DISCARD)
                 raise
             item.Save()
-            if source is not None and source.container_id and source.container_id != ol.default_store_id:
-                # Replies are saved in the default account's Drafts; move the draft into the Drafts of
-                # the mailbox the original is in, so it lives (and later sends) from that mailbox.
-                store = next((s for s in ol.ns.Stores if s.StoreID == source.container_id), None)
-                if store is not None:
-                    try:
-                        item = item.Move(store.GetDefaultFolder(OlFolder.DRAFTS))
-                    except pywintypes.com_error:
-                        pass
+            if source is not None:
+                item = _move_to_drafts_of(ol, item, source.container_id)
             return Draft(
                 ref=self._refs.put(ol.backend_id(item, KIND)),
                 mode=mode,
@@ -386,8 +385,9 @@ class MailService:
                 subject=str(item.Subject),
                 text=text,
                 body_format=body_format,
-                signature=own_signature.name if own_signature else "",
+                signature=signature_label,
                 from_mailbox=sent_as,
+                saved_in=_drafts_location(item),
                 includes_original=source is not None,
                 attachments=[a.FileName for a in item.Attachments if not _is_inline(a)],
             )
@@ -557,6 +557,33 @@ def _insert_above_original(item: Com, fragment: str, text: str, signature: Signa
     else:
         sig = f"\n\n{signature.text}" if signature else ""
         item.Body = f"{text}{sig}\n\n{item.Body}"
+
+
+def _move_to_drafts_of(ol: Outlook, item: Com, store_id: str) -> Com:
+    """Move a saved reply or forward into the Drafts of the mailbox `store_id` and return it.
+
+    Outlook saves every reply in the default account's Drafts, also when the original is in a
+    shared or second mailbox. The item stays where it is when the original is in the default
+    mailbox, the mailbox is not in the profile, or Outlook refuses the move.
+    """
+    if not store_id or store_id == ol.default_store_id:
+        return item
+    store = next((s for s in ol.ns.Stores if s.StoreID == store_id), None)
+    if store is None:
+        return item
+    try:
+        return item.Move(store.GetDefaultFolder(OlFolder.DRAFTS))
+    except pywintypes.com_error:
+        return item
+
+
+def _drafts_location(item: Com) -> str:
+    """Mailbox and folder a draft is saved in, such as 'Vivicta GitHub / Drafts' ('' when unknown)."""
+    try:
+        folder = item.Parent
+        return f"{folder.Store.DisplayName} / {folder.Name}"
+    except (AttributeError, pywintypes.com_error):
+        return ""
 
 
 def _embed_images(item: Com, fragment: str) -> str:

@@ -118,5 +118,6 @@ class Draft(_Model):
     body_format: str = "markdown"
     signature: str = ""
     from_mailbox: str = ""
+    saved_in: str = ""
     includes_original: bool = False
     attachments: list[str] = Field(default_factory=list)
