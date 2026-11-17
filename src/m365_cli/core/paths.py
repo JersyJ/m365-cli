@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+import os
 import re
-from pathlib import PureWindowsPath
+from pathlib import Path, PureWindowsPath
 
 from m365_cli.core.errors import InvalidInputError
 
@@ -23,3 +24,10 @@ def to_windows_path(path: str) -> str:
     if p.startswith("/"):
         raise InvalidInputError(f"Linux-only path {p!r}: use a path under /mnt/c/... or a Windows path.")
     return str(PureWindowsPath(p))
+
+
+def local_path(path: str) -> str:
+    """A path this process can open: on Windows, WSL paths become Windows paths; elsewhere unchanged."""
+    if os.name == "nt":
+        return to_windows_path(path)
+    return str(Path(path.strip().strip('"')).expanduser())

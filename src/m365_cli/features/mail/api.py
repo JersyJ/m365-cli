@@ -26,7 +26,8 @@ KIND = "m"
 class MailApi(Protocol):
     """Mail operations the CLI and MCP tools use, independent of the backend.
 
-    Implemented by `MailService` (classic Outlook) and `FakeMailService` (fake backend).
+    Implemented by `MailService` (classic Outlook), `WebMailService` (Outlook on the web) and
+    `FakeMailService` (fake backend).
     """
 
     def find(self, query: MailQuery, *, offset: int = 0, preview: bool = False) -> Page[MailSummary]:
@@ -108,6 +109,10 @@ def mail_api(ctx: AppContext) -> MailApi:
         from m365_cli.features.mail.fake import FakeMailService
 
         return FakeMailService(ctx)
+    if ctx.is_web:
+        from m365_cli.features.mail.web import WebMailService
+
+        return WebMailService(ctx)
     from m365_cli.features.mail.service import MailService
 
     return MailService(ctx)

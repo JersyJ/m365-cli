@@ -294,14 +294,14 @@ wheels = [
 
 [[package]]
 name = "m365-cli"
-version = "0.1.0"
+version = "0.2.1"
 source = { editable = "." }
 dependencies = [
     { name = "markdown-it-py" },
     { name = "mcp" },
     { name = "pydantic" },
     { name = "pypdf" },
-    { name = "pywin32" },
+    { name = "pywin32", marker = "sys_platform == 'win32'" },
     { name = "typer" },
     { name = "websockets" },
 ]
@@ -319,7 +319,7 @@ requires-dist = [
     { name = "mcp", specifier = ">=2.3.0" },
     { name = "pydantic", specifier = ">=2.14.3" },
     { name = "pypdf", specifier = ">=7.0.0" },
-    { name = "pywin32", specifier = ">=312" },
+    { name = "pywin32", marker = "sys_platform == 'win32'", specifier = ">=312" },
     { name = "typer", specifier = ">=0.28.0" },
     { name = "websockets", specifier = ">=15" },
 ]

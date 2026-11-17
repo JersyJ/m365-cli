@@ -1,10 +1,12 @@
 (() => {
-  const VERSION = 6;
+  const VERSION = 8;
   if (window.__m365cli && window.__m365cli.version === VERSION) return;
 
   const bearers = new Map();
   const skypes = new Map();
   const people = new Map();
+  const OUTLOOK_AUD = 'https://outlook.office.com';
+  let outlookOwner = null;
   const originalFetch = window.fetch.bind(window);
 
   const claimsOf = (bearer) => {
@@ -25,6 +27,7 @@
     const exp = Number(claims.exp || 0) * 1000;
     const old = bearers.get(key);
     if (!old || old.exp <= exp) bearers.set(key, { value, exp });
+    if (claims.aud === OUTLOOK_AUD && claims.oid) outlookOwner = claims.oid;
     if (claims.oid && !people.has(claims.oid)) {
       people.set(claims.oid, {
         oid: claims.oid,
@@ -95,7 +98,7 @@
   };
 
   const me = () => {
-    const id = primaryId();
+    const id = primaryId() || outlookOwner;
     return id ? people.get(id) || null : null;
   };
 
@@ -112,6 +115,7 @@
   };
 
   const baseOf = (service) => {
+    if (service === 'self') return location.origin;
     if (FIXED[service]) return FIXED[service];
     if (/^https:\/\//.test(service)) return service.replace(/\/$/, '');
     const value = serviceMap()[service];
@@ -158,7 +162,9 @@
       }
     }
     const init = { method: req.method || 'GET', headers, credentials: 'omit' };
-    if (req.body !== undefined && req.body !== null) {
+    if (req.bodyBase64) {
+      init.body = Uint8Array.from(atob(req.bodyBase64), (c) => c.charCodeAt(0));
+    } else if (req.body !== undefined && req.body !== null) {
       init.body = typeof req.body === 'string' ? req.body : JSON.stringify(req.body);
       if (!headers['Content-Type']) headers['Content-Type'] = 'application/json';
     }

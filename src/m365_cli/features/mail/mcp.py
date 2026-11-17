@@ -210,8 +210,8 @@ def register_mcp(server: MCPServer, get_ctx: ContextProvider) -> None:
     def mail_mailboxes() -> str:
         """Mailboxes you can use with the `mailbox` and `from_mailbox` parameters.
 
-        Lists your own mailbox, other accounts and shared mailboxes of the Outlook profile. Shared
-        mailboxes not in the profile also work by name or email if you have access.
+        Lists your own mailbox and your shared mailboxes (with classic Outlook also the other accounts
+        of the Outlook profile). Shared mailboxes not listed also work by email if you have access.
         """
         return "\n".join(f"{name} ({kind})" for name, kind in api().mailboxes())
 

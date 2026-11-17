@@ -41,9 +41,9 @@ def pick_wheel(assets: Iterable[Mapping[str, object]]) -> Mapping[str, object] |
 
 
 def source_checkout() -> Path | None:
-    """The repo root when this code runs from a git checkout (editable install), else None."""
+    """The repo root when this code runs from a git checkout or worktree (editable install), else None."""
     root = Path(__file__).resolve().parents[3]
-    return root if (root / ".git").is_dir() else None
+    return root if (root / ".git").exists() else None
 
 
 def _token() -> str | None:
