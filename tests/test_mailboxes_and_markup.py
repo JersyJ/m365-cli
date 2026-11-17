@@ -124,6 +124,7 @@ def test_repeat_rules_and_recurring_draft(fake_ctx: AppContext) -> None:
 
 
 def test_reply_text_replaces_outlooks_empty_paragraphs() -> None:
+    pytest.importorskip("pywintypes", reason="the classic Outlook backend needs Windows")
     from m365_cli.features.mail.service import _reply_html
 
     empty = "<p class=MsoNormal><span style='x'><o:p>&nbsp;</o:p></span></p>"
