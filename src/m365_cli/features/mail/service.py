@@ -330,8 +330,11 @@ class MailService:
         accounts = self._session.run(lambda ol: {str(a.SmtpAddress).lower() for a in ol.ns.Accounts})
         account = sender if sender and sender.lower() in accounts else self._account()
         signature = signature_for(kind, account, getattr(self._settings, f"signature_{kind}"))
+        # On a reply or forward, Outlook inserts the account's reply signature itself; adding our own
+        # would duplicate it, so we only add a signature on a new mail.
+        own_signature = signature if source is None else None
         style = mail_style("compose" if source is None else "reply")
-        fragment = styled(to_html(text, body_format), style) + (f"<br>{signature.html}" if signature else "")
+        fragment = styled(to_html(text, body_format), style) + (f"<br>{own_signature.html}" if own_signature else "")
 
         def run(ol: Outlook) -> Draft:
             if source is None:
@@ -346,7 +349,7 @@ class MailService:
                 }
                 item = actions[mode]()
                 _insert_above_original(
-                    item, _embed_images(item, fragment), to_text(text, body_format), signature
+                    item, _embed_images(item, fragment), to_text(text, body_format), own_signature
                 )
             sent_as = ol.set_sender(item, sender) if sender else ""
             if subject is not None:
@@ -365,6 +368,15 @@ class MailService:
                 item.Close(OL_DISCARD)
                 raise
             item.Save()
+            if source is not None and source.container_id and source.container_id != ol.default_store_id:
+                # Replies are saved in the default account's Drafts; move the draft into the Drafts of
+                # the mailbox the original is in, so it lives (and later sends) from that mailbox.
+                store = next((s for s in ol.ns.Stores if s.StoreID == source.container_id), None)
+                if store is not None:
+                    try:
+                        item = item.Move(store.GetDefaultFolder(OlFolder.DRAFTS))
+                    except pywintypes.com_error:
+                        pass
             return Draft(
                 ref=self._refs.put(ol.backend_id(item, KIND)),
                 mode=mode,
@@ -374,7 +386,7 @@ class MailService:
                 subject=str(item.Subject),
                 text=text,
                 body_format=body_format,
-                signature=signature.name if signature else "",
+                signature=own_signature.name if own_signature else "",
                 from_mailbox=sent_as,
                 includes_original=source is not None,
                 attachments=[a.FileName for a in item.Attachments if not _is_inline(a)],
