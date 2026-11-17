@@ -17,6 +17,7 @@ def summary_line(m: MailSummary) -> str:
     """One line per mail: ref, '*' if unread, time, sender, subject, [att]/[flag]; preview below."""
     flags = ((m.has_attachments, " [att]"), (m.flagged, " [flag]"), (m.protected, " [protected]"))
     marks = "".join(mark for cond, mark in flags if cond)
+    marks += f" [scheduled {fmt(m.scheduled)}]" if m.scheduled else ""
     kind = f" {{{m.kind}}}" if m.kind != "mail" else ""
     unread = "*" if m.unread else " "
     sender, subject = one_line(m.sender, 28), one_line(m.subject, 80)

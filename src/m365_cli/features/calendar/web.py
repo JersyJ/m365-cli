@@ -31,7 +31,7 @@ from m365_cli.features.calendar.rules import check_period, check_repeat, day_sta
 
 _FIELDS = (
     "Id,Subject,Start,End,IsAllDay,Location,ShowAs,Organizer,ResponseStatus,Type,IsCancelled,"
-    "IsOrganizer,Attendees,OnlineMeetingUrl,OnlineMeeting,ResponseRequested"
+    "IsOrganizer,Attendees,OnlineMeetingUrl,OnlineMeeting,ResponseRequested,SeriesMasterId"
 )
 _SHOW_AS = {
     "free": "free",
@@ -466,15 +466,23 @@ class WebCalendarService:
         self._audit.record("cal_send", summary)
         return f"Sent {summary}."
 
-    def respond(self, ref: str, response: Response, *, comment: str = "") -> str:
+    def respond(self, ref: str, response: Response, *, comment: str = "", series: bool = False) -> str:
         """Accept / tentative / decline; sends the response to the organizer when one is requested.
 
+        `series` answers the whole recurring series (its master) instead of one occurrence.
+
         Raises:
-            InvalidInputError: You organize this meeting.
+            InvalidInputError: You organize this meeting, or `series` for a meeting that does not repeat.
             RateLimitError: Too many sends in the last minute.
         """
         event_id, owner = self._event_id(ref)
         ev = self._get(event_id, owner)
+        if series and str(ev.get("Type") or "") != "SeriesMaster":
+            master = ev.get("SeriesMasterId")
+            if not master:
+                raise InvalidInputError("This meeting is not part of a series.")
+            event_id = str(master)
+            ev = self._get(event_id, owner)
         if ev.get("IsOrganizer"):
             raise InvalidInputError("You organize this meeting; use cancel instead.")
         requested = bool(ev.get("ResponseRequested", True))
@@ -486,7 +494,7 @@ class WebCalendarService:
             mailbox=owner,
             body={"Comment": comment, "SendResponse": True} if requested else {"SendResponse": False},
         )
-        subject = str(ev.get("Subject") or "")
+        subject = str(ev.get("Subject") or "") + (" (whole series)" if series else "")
         if not requested:
             return f"Marked '{subject}' as {response} (no response requested)."
         self._audit.record("cal_respond", f"{response} '{subject}'")

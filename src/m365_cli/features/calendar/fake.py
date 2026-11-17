@@ -257,13 +257,18 @@ class FakeCalendarService:
         self._audit.record("cal_send", summary)
         return f"Sent {summary}."
 
-    def respond(self, ref: str, response: Response, *, comment: str = "") -> str:
-        """Record the response in the outbox and update the event (rate-limited and logged)."""
+    def respond(self, ref: str, response: Response, *, comment: str = "", series: bool = False) -> str:
+        """Record the response in the outbox and update the event (rate-limited and logged).
+
+        The fake backend keeps a series as one event, so `series` only checks that it repeats.
+        """
         self._audit.guard("cal_respond")
         with self._store.edit() as state:
             event = self._event(state, ref)
             if event.organizer_is_me:
                 raise InvalidInputError("You organize this meeting; use cancel instead.")
+            if series and not event.recurring:
+                raise InvalidInputError("This meeting is not part of a series.")
             event.my_response = _RESPONSE_STATES[response]
             event.show_as = {
                 "accept": BusyStatus.BUSY,
@@ -279,8 +284,9 @@ class FakeCalendarService:
                     recipients=[event.organizer],
                 )
             )
-        self._audit.record("cal_respond", f"{response} '{event.subject}'")
-        return f"Response '{response}' sent for '{event.subject}'."
+        subject = event.subject + (" (whole series)" if series else "")
+        self._audit.record("cal_respond", f"{response} '{subject}'")
+        return f"Response '{response}' sent for '{subject}'."
 
     def cancel(self, ref: str, *, comment: str = "") -> str:
         """Organizer: record a cancellation. Personal appointment: delete it."""

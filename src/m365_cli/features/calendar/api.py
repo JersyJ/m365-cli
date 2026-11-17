@@ -87,8 +87,11 @@ class CalendarApi(Protocol):
         """Send (or re-send as update) the invitation of a meeting you organize (rate-limited, logged)."""
         ...
 
-    def respond(self, ref: str, response: Response, *, comment: str = "") -> str:
-        """Accept / tentative / decline; sends the response to the organizer (rate-limited, logged)."""
+    def respond(self, ref: str, response: Response, *, comment: str = "", series: bool = False) -> str:
+        """Accept / tentative / decline; sends the response to the organizer (rate-limited, logged).
+
+        `series` answers the whole recurring series instead of the one occurrence of `ref`.
+        """
         ...
 
     def cancel(self, ref: str, *, comment: str = "") -> str:

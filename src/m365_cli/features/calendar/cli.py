@@ -208,11 +208,13 @@ def _writing_commands(app: typer.Typer, api: Callable[[], CalendarApi]) -> None:
         ref: Ref,
         response: Annotated[ResponseChoice, typer.Argument(help="accept | tentative | decline")],
         comment: Annotated[str, typer.Option("--comment", "-m")] = "",
+        series: Annotated[bool, typer.Option("--series", help="Answer the whole recurring series.")] = False,
         yes: Yes = False,
     ) -> None:
         """Accept, tentatively accept or decline a meeting (sends the response)."""
-        if yes or typer.confirm(f"Send '{response.value}' for {ref}?", default=False):
-            typer.echo(api().respond(ref, cast(Response, response.value), comment=comment))
+        what = f"the whole series of {ref}" if series else ref
+        if yes or typer.confirm(f"Send '{response.value}' for {what}?", default=False):
+            typer.echo(api().respond(ref, cast(Response, response.value), comment=comment, series=series))
 
     @app.command()
     def cancel(

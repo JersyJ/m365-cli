@@ -1,9 +1,15 @@
 from datetime import date, datetime
 
+import pytest
+
 from m365_cli.backends.outlook_web.session import ews_id, from_utc, from_wall, quote, rest_id, to_utc, wall
+from m365_cli.core.context import AppContext
+from m365_cli.core.errors import InvalidInputError
+from m365_cli.features.calendar.api import calendar_api
 from m365_cli.features.calendar.models import Repeat
 from m365_cli.features.calendar.web import _recurrence, _set_field
-from m365_cli.features.mail.models import MailQuery
+from m365_cli.features.mail.models import MailQuery, MailSummary
+from m365_cli.features.mail.render import summary_line
 from m365_cli.features.mail.web import (
     _CONTENT_CLASS,
     _MESSAGE_CLASS,
@@ -13,6 +19,7 @@ from m365_cli.features.mail.web import (
     _is_protected,
     _kind,
     _matches,
+    _scheduled,
 )
 
 
@@ -116,3 +123,27 @@ def test_recurrence_and_location_field() -> None:
     assert monthly["Range"]["Type"] == "EndDate"
     assert _set_field("Location", "Room 1")["Path"]["FieldURI"] == "EnhancedLocation"
     assert _set_field("Subject", "x")["Item"] == {"__type": "CalendarItem:#Exchange", "Subject": "x"}
+
+
+def test_series_reply_needs_a_recurring_meeting(fake_ctx: AppContext) -> None:
+    cal = calendar_api(fake_ctx)
+    events = {e.subject: e for e in cal.find(datetime(2026, 11, 9), datetime(2026, 11, 12)).items}
+    assert "(whole series)" in cal.respond(events["Daily standup"].ref, "decline", series=True)
+    with pytest.raises(InvalidInputError):
+        cal.respond(events["Weekly GitLab Meeting"].ref, "accept", series=True)
+
+
+def test_scheduled_mark_only_for_waiting_drafts() -> None:
+    later = {
+        "IsDraft": True,
+        "SingleValueExtendedProperties": [
+            {"PropertyId": "SystemTime 0x3fef", "Value": "2099-01-01T08:00:00Z"}
+        ],
+    }
+    assert _scheduled(later) is not None
+    assert _scheduled({**later, "IsDraft": False}) is None
+    assert _scheduled({"IsDraft": True}) is None
+    summary = MailSummary(
+        ref="m:AAAAAAA", received=None, sender="me", subject="s", scheduled=datetime(2099, 1, 1, 9)
+    )
+    assert "[scheduled " in summary_line(summary)
