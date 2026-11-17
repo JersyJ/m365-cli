@@ -28,6 +28,10 @@ def people_api(ctx: AppContext) -> PeopleApi:
         from m365_cli.features.people.fake import FakePeopleService
 
         return FakePeopleService(ctx)
+    if ctx.is_web:
+        from m365_cli.features.people.web import WebPeopleService
+
+        return WebPeopleService(ctx)
     from m365_cli.features.people.service import PeopleService
 
     return PeopleService(ctx)

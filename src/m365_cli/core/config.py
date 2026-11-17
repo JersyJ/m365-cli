@@ -11,7 +11,7 @@ from m365_cli.core.errors import InvalidInputError
 
 APP_NAME = "m365-cli"
 
-Backend = Literal["outlook", "fake"]
+Backend = Literal["outlook", "web", "fake"]
 
 
 def _app_dir(env_var: str, fallback: str) -> Path:
@@ -20,23 +20,40 @@ def _app_dir(env_var: str, fallback: str) -> Path:
 
 
 def config_dir() -> Path:
-    """Directory of config.toml."""
-    return _app_dir("APPDATA", "AppData/Roaming")
+    """Directory of config.toml: %APPDATA%/m365-cli on Windows, else $XDG_CONFIG_HOME (~/.config)/m365-cli."""
+    if os.name == "nt":
+        return _app_dir("APPDATA", "AppData/Roaming")
+    return _app_dir("XDG_CONFIG_HOME", ".config")
 
 
 def data_dir() -> Path:
-    """Directory for the ref store, the send log and the fake state."""
-    return _app_dir("LOCALAPPDATA", "AppData/Local")
+    """Directory for refs, the send log, the browser profile and the fake state.
+
+    %LOCALAPPDATA%/m365-cli on Windows, else $XDG_DATA_HOME (~/.local/share)/m365-cli.
+    """
+    if os.name == "nt":
+        return _app_dir("LOCALAPPDATA", "AppData/Local")
+    return _app_dir("XDG_DATA_HOME", ".local/share")
 
 
 class Settings(BaseModel):
     """User settings (all keys optional).
 
-    Sources, later ones win: the defaults below, `%APPDATA%/m365-cli/config.toml`, then the
+    Sources, later ones win: the defaults below, `config.toml` in `config_dir()`, then the
     environment variables M365_AGENT_BACKEND, M365_AGENT_FAKE_STATE and M365_AGENT_DATA_DIR.
 
+    `backend` is "outlook" (classic Outlook through COM, Windows only), "web" (Outlook on the web in the
+    dedicated browser) or "fake".
+
     `signature_new` / `signature_reply` are "auto" (Outlook's default signature), "none", or a name.
-    `signature_reply` has no effect: on a reply or forward Outlook inserts its own reply signature.
+    With classic Outlook, `signature_reply` has no effect: on a reply or forward Outlook inserts its own
+    reply signature. With the web backend both are your roaming (cloud) signatures.
+
+    `mail_style` is the font of the text the tool writes, as CSS (e.g. "font-family:Aptos;
+    font-size:11pt"). Empty: classic Outlook's compose font, or the web compose font when one is set.
+
+    `read_protected` lets the web backend show the decrypted text of rights-protected mail. Off by
+    default: such mail is shown as [protected] without its content.
 
     Example config.toml:
 
@@ -50,14 +67,15 @@ class Settings(BaseModel):
         max_sends_per_minute = 5
         teams_protected = ["All Company*", "*Announcements*"]
 
-    Teams: `teams_port` is the DevTools port of the dedicated Teams browser, `teams_browser` its
-    executable (default: Chrome, then Edge), `teams_profile_dir` its profile (default: data_dir /
-    chrome-teams), and `teams_protected` lists chat titles ('*' wildcards) the tool never sends to.
+    Browser (Teams and the web backend): `teams_port` is the DevTools port of the dedicated browser,
+    `teams_browser` its executable (default: Chrome, then Edge), `teams_profile_dir` its profile
+    (default: data_dir / chrome-teams), and `teams_protected` lists chat titles ('*' wildcards) the
+    tool never sends to.
     """
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    backend: Backend = "outlook"
+    backend: Backend = "web"
     fake_state: Path | None = None
     disabled_features: list[str] = Field(default_factory=list)
     list_limit: int = Field(default=15, ge=1, le=200)
@@ -65,6 +83,8 @@ class Settings(BaseModel):
     signoff: str = ""
     signature_new: str = "auto"
     signature_reply: str = "auto"
+    mail_style: str = ""
+    read_protected: bool = False
     work_hours: tuple[int, int] = (8, 17)
     max_sends_per_minute: int = Field(default=5, ge=1, le=60)
     data_dir: Path = Field(default_factory=data_dir)
@@ -80,7 +100,7 @@ class Settings(BaseModel):
         A `fake_state` without an explicit backend switches to the fake backend.
 
         Raises:
-            InvalidInputError: The file or a value is invalid.
+            InvalidInputError: The file or a value is invalid, or classic Outlook is chosen off Windows.
         """
         path = path or config_dir() / "config.toml"
         values: dict[str, Any] = {}
@@ -91,9 +111,12 @@ class Settings(BaseModel):
             values |= {k: v for k, v in overrides.items() if v is not None}
             if values.get("fake_state") and "backend" not in overrides:
                 values.setdefault("backend", "fake")
-            return cls.model_validate(values)
+            settings = cls.model_validate(values)
         except (tomllib.TOMLDecodeError, ValidationError) as exc:
             raise InvalidInputError(f"Invalid config {path}: {exc}") from exc
+        if settings.backend == "outlook" and os.name != "nt":
+            raise InvalidInputError("backend = 'outlook' (classic Outlook) works only on Windows; use 'web'.")
+        return settings
 
 
 def _environment() -> dict[str, Any]:

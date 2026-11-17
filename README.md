@@ -3,8 +3,9 @@
 m365-cli gives an AI agent access to your own Outlook mailbox, calendar and Teams chats.
 It has an MCP server for Claude Code (`m365 mcp`) and a CLI (`m365`). The results are short text, so the agent uses few tokens.
 
-The tool controls classic Outlook through COM and uses the Outlook profile that is already signed in.
-For Teams, it uses the Teams web app in a separate browser profile. The calls run inside the signed-in Teams tab, so the sign-in tokens stay in the browser.
+The tool uses Outlook on the web and the Teams web app in a separate browser profile, one tab for each.
+The calls run inside the signed-in tabs, so the sign-in tokens stay in the browser.
+With `backend = "outlook"`, mail, calendar and people use classic Outlook through COM instead (Windows only).
 It needs no Graph app registration and no admin consent.
 
 ## Tools
@@ -75,10 +76,12 @@ For a search across both mail and Teams, the agent combines `mail_find` and `tea
 
 ### Limits
 
-* A mail with rights protection (Microsoft Information Protection) or S/MIME has the mark `[protected]`. The tool cannot read its content.
+* A mail with rights protection (Microsoft Information Protection) or S/MIME has the mark `[protected]`. The tool does not show its content. With the web backend, `read_protected = true` shows the decrypted text of rights-protected mail.
 * Most colleagues share only free/busy. Then `cal_find` with `owner` gives an error and tells you to use free/busy.
 * Teams uses your home account only. Guest accounts in other tenants are not used.
 * Teams has no supported API for this. The tool uses the internal API of the Teams web app, which can change. See [docs/teams-api.md](docs/teams-api.md).
+* The web backend uses the Outlook REST API (`/api/beta`) and `service.svc` of Outlook on the web. Microsoft does not support them for other clients, and they can change.
+* With the web backend, the mailboxes are yours and the shared mailboxes added to Outlook on the web. Accounts in other tenants and the manager on the contact card are not available.
 * The first Teams listing can take one minute, because the tool looks up the names of 1:1 chats. Later listings use a cache.
 
 ## Safety
@@ -95,8 +98,8 @@ For a search across both mail and Teams, the agent combines `mail_find` and `tea
 
 ### What you need
 
-* **Classic Outlook**, signed in. It can run in the background. Used for mail, calendar and people.
-* **Google Chrome** ([google.com/chrome](https://www.google.com/chrome/)), only if you want Teams. The tool drives Teams in a separate Chrome profile.
+* **Google Chrome** ([google.com/chrome](https://www.google.com/chrome/)). The tool drives Outlook on the web and Teams in a separate Chrome profile.
+* **Classic Outlook**, signed in, only with `backend = "outlook"`.
 * The **Microsoft Single Sign On** Chrome extension ([web store](https://chromewebstore.google.com/detail/microsoft-single-sign-on/ppnbnpeolgkicgegkbkbjmhlideopiji)), only for Teams. On a work-joined (Entra/Intune) PC it is usually installed for you, and it signs Teams in automatically with your Windows login — no password prompt.
 
 ### First-time install
@@ -175,9 +178,19 @@ Safety with Copilot: the flag `anthropic/requiresUserInteraction` works only in 
 Copilot asks before each tool call by default. Do not auto-approve the send tools.
 In Copilot CLI, block them for unattended runs: `--deny-tool 'm365(mail_send)' --deny-tool 'm365(cal_send)' --deny-tool 'm365(cal_respond)' --deny-tool 'm365(cal_cancel)' --deny-tool 'm365(teams_send)'`.
 
+## Install (Linux)
+
+1. Install **uv**, **git**, and **Google Chrome** (or Chromium or Microsoft Edge) so that it is on the `PATH`.
+2. Install the tool: `uv tool install git+https://github.com/JersyJ/m365-cli`
+3. Run `m365 mail list -n 5`. The first time, the browser window opens: sign in with your work account. The browser keeps the sign-in until your organization asks for it again.
+4. Connect Claude Code: `claude mcp add m365 -s user -- m365 mcp`
+
+The settings are in `~/.config/m365-cli/config.toml`. The refs, the send log and the browser profile are in `~/.local/share/m365-cli`.
+Only the web backend works on Linux (`backend = "outlook"` needs Windows).
+
 ## Settings
 
-The file `%APPDATA%\m365-cli\config.toml` is optional. All keys are optional.
+The file `%APPDATA%\m365-cli\config.toml` (Linux: `~/.config/m365-cli/config.toml`) is optional. All keys are optional.
 
 ```toml
 disabled_features = ["people"]
@@ -195,14 +208,17 @@ teams_port = 9222
 | Key | Meaning |
 |---|---|
 | `disabled_features` | Features to remove (`mail`, `calendar`, `people`, `teams`, `briefing`). Fewer tools use fewer tokens. |
-| `signature_new`, `signature_reply` | `"auto"` (the Outlook default), `"none"`, or the name of an Outlook signature. `signature_reply` has no effect: on a reply or forward Outlook inserts its own reply signature, so set that one in Outlook. The key stays valid for older config files. |
+| `backend` | `"web"` (default: Outlook on the web) or `"outlook"` (classic Outlook through COM, Windows only). |
+| `signature_new`, `signature_reply` | `"auto"` (the Outlook default), `"none"`, or the name of an Outlook signature. With classic Outlook, `signature_reply` has no effect: on a reply or forward Outlook inserts its own reply signature, so set that one in Outlook. The key stays valid for older config files. The web backend uses your roaming (cloud) signatures for both. |
+| `mail_style` | Font of the text the tool writes, as CSS, e.g. `"font-family:Aptos;font-size:11pt"`. Empty: the Outlook compose font. |
+| `read_protected` | Web backend only: show the decrypted text of rights-protected mail (default `false`). |
 | `signoff` | Text that the tool adds to each text that it sends. |
 | `list_limit` | Number of items in a list (default 15). |
 | `body_max_chars` | Maximum length of a mail body in the result (default 6000). |
 | `work_hours` | Start hour and end hour for free-time searches. |
 | `max_sends_per_minute` | Send limit for mail, invitations and Teams messages (default 5). |
 | `teams_protected` | Teams chat titles that the tool never sends to. `*` is a wildcard. |
-| `teams_port` | DevTools port of the Teams browser on 127.0.0.1 (default 9222). |
+| `teams_port` | DevTools port of the browser for Teams and Outlook on the web, on 127.0.0.1 (default 9222). |
 | `teams_browser`, `teams_profile_dir` | Browser executable (default: Chrome, then Edge) and its profile directory. |
 
 ## More documentation

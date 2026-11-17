@@ -31,7 +31,7 @@ class CdpConnection:
                 ws_url, open_timeout=timeout, max_size=_MAX_MESSAGE, origin=None, compression=None
             )
         except (OSError, WebSocketException) as exc:
-            raise BackendUnavailableError(f"Cannot connect to the Teams browser tab: {exc}") from exc
+            raise BackendUnavailableError(f"Cannot connect to the browser tab: {exc}") from exc
         self._next_id = 0
         self._lock = threading.Lock()
 
@@ -54,17 +54,17 @@ class CdpConnection:
                     left = deadline - time.monotonic()
                     if left <= 0:
                         raise BackendUnavailableError(
-                            f"The Teams tab did not answer {method} in {timeout:g} s."
+                            f"The browser tab did not answer {method} in {timeout:g} s."
                         )
                     message = json.loads(self._ws.recv(timeout=left))
                     if message.get("id") == call_id:
                         break
             except TimeoutError as exc:
                 raise BackendUnavailableError(
-                    f"The Teams tab did not answer {method} in {timeout:g} s."
+                    f"The browser tab did not answer {method} in {timeout:g} s."
                 ) from exc
             except (OSError, WebSocketException) as exc:
-                raise BackendUnavailableError(f"Lost the connection to the Teams tab: {exc}") from exc
+                raise BackendUnavailableError(f"Lost the connection to the browser tab: {exc}") from exc
         if "error" in message:
             raise CdpError(f"{method}: {message['error'].get('message', message['error'])}")
         return message.get("result", {})
@@ -83,7 +83,7 @@ class CdpConnection:
         if "exceptionDetails" in result:
             details = result["exceptionDetails"]
             text = details.get("exception", {}).get("description") or details.get("text", "error")
-            raise CdpError(f"Script error in the Teams tab: {text.splitlines()[0]}")
+            raise CdpError(f"Script error in the browser tab: {text.splitlines()[0]}")
         return result.get("result", {}).get("value")
 
     def close(self) -> None:

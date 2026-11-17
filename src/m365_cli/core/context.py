@@ -10,8 +10,10 @@ from m365_cli.core.refs import RefStore
 from m365_cli.core.timeutil import use_clock
 
 if TYPE_CHECKING:
+    from m365_cli.backends.browser import BrowserConfig
     from m365_cli.backends.fake import FakeStore
     from m365_cli.backends.outlook import OutlookSession
+    from m365_cli.backends.outlook_web import OutlookWebSession
     from m365_cli.backends.teams import TeamsSession
 
 
@@ -35,6 +37,11 @@ class AppContext:
         """True when the fake backend is active."""
         return self.settings.backend == "fake"
 
+    @property
+    def is_web(self) -> bool:
+        """True when mail, calendar and people use Outlook on the web instead of classic Outlook."""
+        return self.settings.backend == "web"
+
     @cached_property
     def refs(self) -> RefStore:
         """Short-ref store."""
@@ -54,19 +61,29 @@ class AppContext:
 
         return OutlookSession()
 
+    def _browser(self) -> BrowserConfig:
+        from m365_cli.backends.browser import BrowserConfig
+
+        s = self.settings
+        return BrowserConfig(
+            port=s.teams_port,
+            profile_dir=s.teams_profile_dir or s.data_dir / "chrome-teams",
+            executable=s.teams_browser,
+        )
+
     @cached_property
     def teams(self) -> TeamsSession:
         """Teams session in the dedicated browser, started on first use."""
-        from m365_cli.backends.teams import BrowserConfig, TeamsSession
+        from m365_cli.backends.teams import TeamsSession
 
-        s = self.settings
-        return TeamsSession(
-            BrowserConfig(
-                port=s.teams_port,
-                profile_dir=s.teams_profile_dir or s.data_dir / "chrome-teams",
-                executable=s.teams_browser,
-            )
-        )
+        return TeamsSession(self._browser())
+
+    @cached_property
+    def outlook_web(self) -> OutlookWebSession:
+        """Outlook on the web session, a second tab of the dedicated browser, started on first use."""
+        from m365_cli.backends.outlook_web import OutlookWebSession
+
+        return OutlookWebSession(self._browser())
 
     @cached_property
     def fake(self) -> FakeStore:
@@ -87,5 +104,7 @@ class AppContext:
             self.outlook.close()
         if "teams" in self.__dict__:
             self.teams.close()
+        if "outlook_web" in self.__dict__:
+            self.outlook_web.close()
         if self.is_fake:
             use_clock(None)

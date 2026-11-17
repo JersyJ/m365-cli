@@ -24,7 +24,8 @@ MEETING_MAIL_KIND = "m"
 class CalendarApi(Protocol):
     """Calendar operations the CLI and MCP tools use, independent of the backend.
 
-    Implemented by `CalendarService` (classic Outlook) and `FakeCalendarService` (fake backend).
+    Implemented by `CalendarService` (classic Outlook), `WebCalendarService` (Outlook on the web) and
+    `FakeCalendarService` (fake backend).
     """
 
     def find(
@@ -114,6 +115,10 @@ def calendar_api(ctx: AppContext) -> CalendarApi:
         from m365_cli.features.calendar.fake import FakeCalendarService
 
         return FakeCalendarService(ctx)
+    if ctx.is_web:
+        from m365_cli.features.calendar.web import WebCalendarService
+
+        return WebCalendarService(ctx)
     from m365_cli.features.calendar.service import CalendarService
 
     return CalendarService(ctx)
