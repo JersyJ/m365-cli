@@ -123,6 +123,11 @@ def is_mine(message: dict[str, Any], me: Member) -> bool:
     return bool(name) and name.casefold() == me.name.casefold()
 
 
+def is_muted(conversation: dict[str, Any]) -> bool:
+    """True when you muted the conversation in Teams (its `alerts` property is 'false')."""
+    return str((conversation.get("properties") or {}).get("alerts", "")).lower() == "false"
+
+
 def is_unread(conversation: dict[str, Any], me: Member) -> bool:
     """True when the newest message is from someone else and newer than your read position.
 

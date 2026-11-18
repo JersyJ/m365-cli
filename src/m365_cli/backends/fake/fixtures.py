@@ -113,6 +113,7 @@ def _teams_chats() -> list[FakeChat]:
             title="Cloud Ops / General",
             members=["Alex Tester", "Jana Nováková", "Petr Svoboda", "Eva Horáková"],
             unread=True,
+            muted=True,
             messages=[
                 msg("3001", "Eva Horáková", 50, "<p>Welcome to the Cloud Ops team!</p>"),
                 msg("3002", "Petr Svoboda", 5, "<p>Maintenance window tonight 22:00-23:00.</p>"),
