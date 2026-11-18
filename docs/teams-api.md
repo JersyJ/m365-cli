@@ -16,6 +16,7 @@ These notes are facts that we checked on a real account. Update them when someth
 * Kind: `threadProperties.productThreadType` (`OneToOneChat`, `Chat`, `Meeting`, `TeamsStandardChannel`, `TeamsTeam`, …). IDs that start with `48:` are system streams.
 * Deleted teams stay in the list with `threadProperties.isdeleted`. Channels that you left have a `memberExpirationTime` in the past and answer 404 "soft-deleted". Meeting chats with an expired membership stay readable.
 * Unread: `lastMessage.id` is greater than the first field of `properties.consumptionhorizon`.
+* Muted: `properties.alerts` is `"false"` (checked 2026-11-18; absent or `"true"` when not muted).
 * A 1:1 chat has no title. Its ID is `19:<guid>_<guid>@unq.gbl.spaces`. After a tenant move, old chats hold your old user ID, so also compare display names.
 * A channel's `threadProperties.spaceThreadTopic` holds the team name and `topicThreadTopic` the channel name, so the team name needs no extra request. The CSA service (team/favorite grouping) needs a `chatsvcagg.teams.microsoft.com` token that Teams does not mint for the home tenant while the tool drives it, so the tool does not use CSA.
 * Users from other tenants are not found by `fetchShortProfile`. Use the names on their messages (`imdisplayname`).
