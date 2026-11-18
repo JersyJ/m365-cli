@@ -19,12 +19,12 @@ _MESSAGE_LIMIT = 2000
 
 
 def chats(page: Page[Chat]) -> str:
-    """One line per chat: ref, kind, title, last activity, unread mark, last message preview."""
+    """One line per chat: ref, kind, title, last activity, unread and muted marks, last message preview."""
     if not page.items:
         return "No Teams chats found." if not page.offset else "No more Teams chats."
     lines = [f"Teams chats (newest activity first, {len(page.items)} shown):"]
     for c in page.items:
-        mark = " *unread*" if c.unread else ""
+        mark = (" *unread*" if c.unread else "") + (" [muted]" if c.muted else "")
         last = f" | {c.last_from}: {c.last_preview}" if c.last_preview else ""
         lines.append(f"{c.ref} {c.kind:<7} {c.title} ({fmt(c.last_time)}){mark}{last}")
     if any(c.last_preview for c in page.items):
@@ -125,7 +125,8 @@ def digest(d: Digest) -> str:
         body.append(f"Unread conversations ({len(d.unread)}):")
         for c in d.unread:
             last = f" | {c.last_from}: {c.last_preview}" if c.last_preview else ""
-            body.append(f"{c.ref} {c.kind:<7} {c.title} ({fmt(c.last_time)}){last}")
+            muted = " [muted]" if c.muted else ""
+            body.append(f"{c.ref} {c.kind:<7} {c.title} ({fmt(c.last_time)}){muted}{last}")
     if not body:
         return "Nothing unread and no new mentions on Teams."
     wrapped = untrusted("teams digest", "\n".join(body))

@@ -121,6 +121,7 @@ class FakeChat(BaseModel):
     title: str
     members: list[str] = Field(default_factory=list)
     unread: bool = False
+    muted: bool = False
     deleted: bool = False
     messages: list[FakeTeamsMessage] = Field(default_factory=list)
 

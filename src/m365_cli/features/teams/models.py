@@ -20,7 +20,11 @@ class Member(BaseModel):
 
 
 class Chat(BaseModel):
-    """A Teams conversation: 1:1 chat, group chat, meeting chat or channel."""
+    """A Teams conversation: 1:1 chat, group chat, meeting chat or channel.
+
+    Attributes:
+        muted: You muted it in Teams (no notifications for new messages).
+    """
 
     model_config = ConfigDict(frozen=True)
 
@@ -32,6 +36,7 @@ class Chat(BaseModel):
     last_from: str = ""
     last_preview: str = ""
     unread: bool = False
+    muted: bool = False
 
 
 class TeamsMessage(BaseModel):

@@ -71,6 +71,7 @@ class FakeTeamsService:
             last_from=last.sender if last else "",
             last_preview=one_line(rules.html_to_text(last.html)[0], 90) if last else "",
             unread=c.unread,
+            muted=c.muted,
         )
 
     def _all(self) -> list[Chat]:

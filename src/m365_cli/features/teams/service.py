@@ -129,6 +129,7 @@ class TeamsService:
             last_from=one_line(str(last.get("imdisplayname") or ""), 40) if preview else "",
             last_preview=preview,
             unread=rules.is_unread(conv, self._me),
+            muted=rules.is_muted(conv),
         )
 
     def _title(self, conv: dict[str, Any], kind: ChatKind) -> str:

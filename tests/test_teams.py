@@ -66,6 +66,9 @@ def test_unread_and_one_on_one_partner() -> None:
         lastMessage={"id": "200", "from": "x/8:orgid:old", "imdisplayname": "alex", "messagetype": "Text"}
     )
     assert not rules.is_unread(by_name, me)
+    assert rules.is_muted(conv(properties={"alerts": "false"}))
+    assert not rules.is_muted(conv(properties={"alerts": "true"}))
+    assert not rules.is_muted(conv())
     one = f"19:{ME.rsplit(':', 1)[1]}_{OTHER.rsplit(':', 1)[1]}@unq.gbl.spaces"
     assert rules.other_member_mri(one, ME) == OTHER
     assert rules.other_member_mri(one, "8:orgid:cccccccc-0000-0000-0000-000000000003") == ""
@@ -250,6 +253,8 @@ def test_fake_digest_mentions_and_unread(fake_ctx: AppContext) -> None:
     assert "Mentions & replies to you" in out
     assert "Eva Horáková mentioned you in Platform squad" in out
     assert "Unread conversations" in out and "Jana Nováková" in out
+    assert "Cloud Ops / General (" in out and ") [muted]" in out
+    assert "Jana Nováková (" in out and out.count("[muted]") == 1
     assert "<<<UNTRUSTED teams digest" in out
     ref = next(line.split("]")[0].lstrip("[") for line in out.splitlines() if "mentioned you" in line)
     assert ref.startswith("p:")
