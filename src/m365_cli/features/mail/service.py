@@ -201,6 +201,7 @@ class MailService:
             sender_email=ol.smtp_of(get(item, "Sender")),
             to=str(get(item, "To", "")),
             cc=str(get(item, "CC", "")),
+            bcc=str(get(item, "BCC", "")),
             categories=str(get(item, "Categories", "") or ""),
             attachments=[
                 Attachment(index=a.index, name=a.name, size=a.size, inline=a.inline)

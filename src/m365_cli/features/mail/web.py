@@ -318,6 +318,7 @@ class WebMailService:
             sender_email=_address(self._from(m, mailbox)),
             to="; ".join(_name(r) for r in m.get("ToRecipients") or []),
             cc="; ".join(_name(r) for r in m.get("CcRecipients") or []),
+            bcc="; ".join(_name(r) for r in m.get("BccRecipients") or []),
             categories=", ".join(m.get("Categories") or []),
             attachments=[
                 Attachment(

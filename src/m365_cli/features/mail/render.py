@@ -44,6 +44,8 @@ def message(m: MailMessage, *, mark_untrusted: bool = False) -> str:
     ]
     if m.cc:
         lines.append(f"Cc: {m.cc}")
+    if m.bcc:
+        lines.append(f"Bcc: {m.bcc}")
     if m.categories:
         lines.append(f"Categories: {m.categories}")
     files = [a for a in m.attachments if not a.inline]
