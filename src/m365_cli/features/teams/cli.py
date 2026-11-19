@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Callable
+from pathlib import Path
 from typing import Annotated
 
 import typer
@@ -89,6 +90,21 @@ def _read_commands(app: typer.Typer, api: Callable[[], TeamsApi], get_ctx: Conte
             typer.echo(render.file_text(service.file_text(chat, name)))
         else:
             typer.echo(render.shared_files(service.files(chat)))
+
+    @app.command()
+    def image(
+        ref: Annotated[str, typer.Argument(help="Image ref (i:…) from 'teams read'.")],
+        out: Annotated[
+            Path | None, typer.Option("--out", help="File to save to (default: the data folder).")
+        ] = None,
+    ) -> None:
+        """Save an image (screenshot or picture) from a message and print where it is."""
+        picture = api().image(ref)
+        name = f"{ref.removeprefix('i:')}.{picture.mime.removeprefix('image/')}"
+        target = out or get_ctx().settings.data_dir / "teams-images" / name
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(picture.data)
+        typer.echo(str(target))
 
     @app.command()
     def status(who: Annotated[str, typer.Argument(help="Colleague's name or email.")]) -> None:

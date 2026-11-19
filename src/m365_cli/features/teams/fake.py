@@ -24,6 +24,7 @@ from m365_cli.features.teams.models import (
     SearchHit,
     SharedFile,
     TeamsDraft,
+    TeamsImage,
     TeamsMessage,
 )
 
@@ -35,6 +36,12 @@ _PAGE_CURSOR = "older-than:"
 
 def _mri(name: str) -> str:
     return "8:orgid:" + name.casefold().replace(" ", "-")
+
+
+_FAKE_PNG = bytes.fromhex(
+    "89504e470d0a1a0a0000000d4948445200000001000000010806000000"
+    "1f15c4890000000d49444154789c6360000002000001e221bc330000000049454e44ae426082"
+)
 
 
 class FakeTeamsService:
@@ -119,6 +126,12 @@ class FakeTeamsService:
         cut_text, cut = truncate(text, self._ctx.settings.body_max_chars)
         return FileText(name=match, text=cut_text, truncated=cut)
 
+    def image(self, image_ref: str) -> TeamsImage:
+        """See `TeamsApi.image`; every Teams-stored image of the fake backend is the same 1x1 PNG."""
+        if rules.image_object(self._refs.get(image_ref, kinds="i").item_id) is None:
+            raise InvalidInputError(f"{image_ref} is not an image stored in Teams.")
+        return TeamsImage(ref=image_ref, mime="image/png", data=_FAKE_PNG)
+
     def _fake_chat(self, chat_id: str) -> FakeChat:
         found = next((c for c in self._state.teams_chats if c.id == chat_id and not c.deleted), None)
         if found is None:
@@ -149,7 +162,9 @@ class FakeTeamsService:
             mentions=mentions,
             reactions=dict(m.reactions),
             files=list(m.files),
-            images=images,
+            images=[
+                self._refs.put(BackendId("i", src, chat_id)) for src in images if rules.image_object(src)
+            ],
         )
 
     def read(

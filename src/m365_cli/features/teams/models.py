@@ -63,7 +63,17 @@ class TeamsMessage(BaseModel):
     mentions: list[str] = Field(default_factory=list)
     reactions: dict[str, int] = Field(default_factory=dict)
     files: list[str] = Field(default_factory=list)
-    images: int = 0
+    images: list[str] = Field(default_factory=list)
+
+
+class TeamsImage(BaseModel):
+    """An image from a Teams message: its bytes and MIME type."""
+
+    model_config = ConfigDict(frozen=True)
+
+    ref: str
+    mime: str
+    data: bytes
 
 
 class MessagePage(BaseModel):

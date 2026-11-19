@@ -27,6 +27,7 @@ These notes are facts that we checked on a real account. Update them when someth
 * Send: `POST …/conversations/{id}/messages` with `content`, `messagetype: RichText/Html`, `contenttype: text`, `imdisplayname` (required) and `clientmessageid`. The answer field `OriginalArrivalTime` is the message ID.
 * Reply in a channel thread: `…/conversations/{channelId};messageid={rootId}/messages`.
 * Scheduled send: `POST …/users/ME/drafts` with `draftType: ScheduledDraft` and `draftDetails.sendAt`.
+* Images pasted into a message are `<img itemtype="http://schema.skype.com/AMSImage" src="https://<region>-api.asm.skype.com/v1/objects/<id>/views/imgo">`. The object service needs `Authorization: skype_token <token>` (the chat-service headers answer 401). `views/imgo` is scaled to 800 px wide; `views/imgpsh_fullsize_anim` is the original (checked 2026-11-19). The tool sends the token only to `*.asm.skype.com` and `*.asyncgw.teams.microsoft.com`.
 * `properties.emotions` is a JSON string or a list. The key `follow` is a thread subscription, not a reaction.
 * Mentions: `<span itemtype="http://schema.skype.com/Mention" itemscope itemid="N">` in the content, plus `properties.mentions` (JSON string).
 

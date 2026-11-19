@@ -339,11 +339,17 @@ def register_mcp(server: MCPServer, get_ctx: ContextProvider) -> None:
         save_to: Annotated[
             str | None, Field(description="Directory to save all attachments into (Windows or /mnt/c/...).")
         ] = None,
+        inline: Annotated[
+            bool, Field(description="Also list and save inline images (screenshots pasted into the text).")
+        ] = False,
     ) -> str:
         """List a mail's attachments, read the text of one (`read`), or save them all (`save_to`).
 
-        Attachment text is wrapped in UNTRUSTED markers.
+        Attachment text is wrapped in UNTRUSTED markers. A saved image can be opened as a file to look at it.
         """
         if read is not None:
             return render.attachment_text(api().attachment_text(mail_ref, read), mark_untrusted=True)
-        return "\n".join(api().attachments(mail_ref, save_to=save_to)) or "(no attachments)"
+        return (
+            "\n".join(api().attachments(mail_ref, save_to=save_to, include_inline=inline))
+            or "(no attachments)"
+        )
