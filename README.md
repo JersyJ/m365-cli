@@ -25,7 +25,7 @@ Each MCP tool has a CLI command with the same function.
 | `mail_draft` | `m365 mail new` / `reply` / `forward` | Saves a draft: new, reply, reply-all or forward. Adds your Outlook font and signature (on a reply or forward, Outlook's own reply signature). A reply to a mail in a shared mailbox is saved in that mailbox's Drafts. The body is Markdown. |
 | `mail_send` | `m365 mail send` | Sends a draft now, or at a later time (`send_at`). |
 | `mail_update` | `m365 mail update` | Marks read or unread, flags, sets categories, moves, deletes. Works on one mail, many refs, or all mails that agree with a filter. |
-| `mail_attachments` | `m365 mail attachments` | Lists or saves the attachments, or shows the text of a PDF, DOCX, PPTX, XLSX or text file. |
+| `mail_attachments` | `m365 mail attachments` | Lists or saves the attachments, or shows the text of a PDF, DOCX, PPTX, XLSX or text file. With `inline` (`--inline`), also the images pasted into the text. |
 
 Most mail tools accept `mailbox` (a shared mailbox or another account). `mail_draft` accepts `from_mailbox`.
 A reply to a mail in another mailbox goes out from that mailbox.
@@ -65,6 +65,7 @@ A reply to a mail in another mailbox goes out from that mailbox.
 | `teams_digest` | `m365 teams digest` | What needs you: @mentions and replies to you, plus unread chats and channels (chats you muted in Teams are marked). Use it for "what is new". |
 | `teams_search` | `m365 teams search` | Full-text search across your Teams chats and channels. Each hit links to its conversation. |
 | `teams_file` | `m365 teams files` | Lists files shared in a chat, or reads the text of one (PDF, DOCX, PPTX, XLSX, and text files such as .txt, .md, .csv, .json). |
+| `teams_image` | `m365 teams image` | Returns an image from a message (a screenshot or picture; `teams_read` lists its `i:` ref), so the agent can look at it. The CLI saves it to a file. |
 | `teams_draft` | `m365 teams write` | Prepares a message, a reply (with quote) or a first message to a person. The body is Markdown. `@[Name]` mentions a chat member. |
 | `teams_send` | `m365 teams send` | Sends a draft now, or at a later time (`send_at`). |
 | `teams_status` | `m365 teams status` | Shows a colleague's live Teams presence (available, busy, in a meeting, away, out of office, offline), status note and card. |

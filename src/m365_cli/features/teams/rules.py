@@ -9,6 +9,7 @@ from collections.abc import Callable, Iterable, Sequence
 from datetime import UTC, datetime
 from html.parser import HTMLParser
 from typing import Any
+from urllib.parse import urlsplit
 
 from m365_cli.core.errors import InvalidInputError
 from m365_cli.core.markup import BodyFormat, to_html, to_text
@@ -196,7 +197,7 @@ class _TextParser(HTMLParser):
         super().__init__(convert_charrefs=True)
         self.parts: list[str] = []
         self.mentions: list[str] = []
-        self.images = 0
+        self.images: list[str] = []
         self.quote_sender = ""
         self.quote_preview: list[str] = []
         self._quote_depth = 0
@@ -221,7 +222,7 @@ class _TextParser(HTMLParser):
             if a.get("itemtype") == "http://schema.skype.com/Emoji" or "emoji" in (a.get("class") or ""):
                 self.parts.append(alt)
             else:
-                self.images += 1
+                self.images.append(a.get("src") or "")
                 self.parts.append("[image]")
         elif tag == "emoji":
             self.parts.append(a.get("alt") or "")
@@ -274,10 +275,10 @@ class _TextParser(HTMLParser):
             self.parts.append(data)
 
 
-def html_to_text(content: str) -> tuple[str, list[str], str, int]:
+def html_to_text(content: str) -> tuple[str, list[str], str, list[str]]:
     """Plain text of a Teams HTML message.
 
-    Returns (text, mentioned names, quote as 'Sender: preview', number of images).
+    Returns (text, mentioned names, quote as 'Sender: preview', the `src` of each image, in order).
     """
     parser = _TextParser()
     parser.feed(content or "")
@@ -292,12 +293,38 @@ def html_to_text(content: str) -> tuple[str, list[str], str, int]:
     return sanitize(text), parser.mentions, quote, parser.images
 
 
-def message_text(message: dict[str, Any]) -> tuple[str, list[str], str, int]:
-    """Text, mentions, quote and image count of a raw message (plain 'Text' messages have no HTML)."""
+def message_text(message: dict[str, Any]) -> tuple[str, list[str], str, list[str]]:
+    """Text, mentions, quote and image sources of a raw message (plain 'Text' messages have no HTML)."""
     content = str(message.get("content") or "")
     if str(message.get("messagetype")) == "Text" and "<" not in content:
-        return sanitize(html.unescape(content)).strip(), [], "", 0
+        return sanitize(html.unescape(content)).strip(), [], "", []
     return html_to_text(content)
+
+
+_AMS_HOST = re.compile(r"^[a-z0-9-]+\.(asm\.skype\.com|asyncgw\.teams\.microsoft\.com)$")
+_AMS_PATH = re.compile(r"^/v1/objects/([A-Za-z0-9_-]+)/views/[A-Za-z0-9_]+$")
+
+
+def image_object(src: str) -> tuple[str, str] | None:
+    """(service base URL, object ID) of an image stored in Teams (AMS), or None for any other image.
+
+    Only these hosts get your Teams token, so an image link in a message never sends it elsewhere.
+    """
+    url = urlsplit(src)
+    match = _AMS_PATH.match(url.path)
+    if url.scheme != "https" or not _AMS_HOST.match(url.hostname or "") or not match or url.query:
+        return None
+    return f"https://{url.hostname}", match.group(1)
+
+
+_IMAGE_MAGIC = ((b"\x89PNG", "image/png"), (b"\xff\xd8\xff", "image/jpeg"), (b"GIF8", "image/gif"))
+
+
+def image_type(data: bytes) -> str | None:
+    """MIME type of PNG, JPEG, GIF or WebP bytes; None for anything else."""
+    if data[:4] == b"RIFF" and data[8:12] == b"WEBP":
+        return "image/webp"
+    return next((mime for magic, mime in _IMAGE_MAGIC if data.startswith(magic)), None)
 
 
 def matches(text: str, query: str) -> bool:

@@ -1,5 +1,5 @@
 (() => {
-  const VERSION = 8;
+  const VERSION = 9;
   if (window.__m365cli && window.__m365cli.version === VERSION) return;
 
   const bearers = new Map();
@@ -150,11 +150,15 @@
     if (!base) return { status: 0, error: 'unknown service ' + req.service };
     const headers = Object.assign({ Accept: 'application/json' }, req.headers || {});
     for (const auth of req.auth || []) {
-      if (auth === 'skype') {
+      if (auth === 'skype' || auth === 'ams') {
         const skype = skypes.get(user.tid);
         if (!skype) return { status: 0, error: 'no-skype-token' };
-        headers['Authentication'] = 'skypetoken=' + skype.value;
-        headers['x-skypetoken'] = skype.value;
+        if (auth === 'ams') {
+          headers['Authorization'] = 'skype_token ' + skype.value;
+        } else {
+          headers['Authentication'] = 'skypetoken=' + skype.value;
+          headers['x-skypetoken'] = skype.value;
+        }
       } else {
         const token = bearers.get(user.tid + '|' + auth);
         if (!token) return { status: 0, error: 'no-token ' + auth };

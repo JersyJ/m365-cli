@@ -15,6 +15,7 @@ from m365_cli.features.teams.models import (
     SearchHit,
     SharedFile,
     TeamsDraft,
+    TeamsImage,
 )
 
 if TYPE_CHECKING:
@@ -105,6 +106,14 @@ class TeamsApi(Protocol):
 
         Raises:
             InvalidInputError: No file (or several) match the name, or the type is unsupported.
+        """
+        ...
+
+    def image(self, image_ref: str) -> TeamsImage:
+        """Download an image (screenshot or picture) from a message, by its ref (i:…) from `read`.
+
+        Raises:
+            InvalidInputError: The ref is no image stored in Teams, or Teams gives no viewable image.
         """
         ...
 

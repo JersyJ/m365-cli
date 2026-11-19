@@ -52,6 +52,8 @@ def message(m: TeamsMessage, *, full: bool) -> str:
         extras.append("reactions: " + ", ".join(f"{k} {n}" for k, n in m.reactions.items()))
     if m.files:
         extras.append("files: " + ", ".join(m.files))
+    if m.images:
+        extras.append("images (view with teams_image): " + ", ".join(m.images))
     if extras:
         parts.append("  [" + "; ".join(extras) + "]")
     return "\n".join(parts)

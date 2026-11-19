@@ -31,6 +31,7 @@ from m365_cli.features.teams.models import (
     SearchHit,
     SharedFile,
     TeamsDraft,
+    TeamsImage,
     TeamsMessage,
 )
 
@@ -48,6 +49,7 @@ SHAREPOINT_AUD = "00000003-0000-0ff1-ce00-000000000000"
 _LIST_SIZE = 500
 _MENTIONS = "48:mentions"
 _FILE_SCAN = 40
+_IMAGE_MAX = 4 * 1024 * 1024
 _MESSAGE_VIEW = "msnp24Equivalent|supportsMessageProperties"
 _PROFILE_PATH = "/beta/users/fetchShortProfile?isMailAddress={}&enableGuest=true&skypeTeamsInfo=true"
 
@@ -294,7 +296,7 @@ class TeamsService:
             mentions=mentions,
             reactions=rules.reactions_of(props),
             files=rules.files_of(props),
-            images=images,
+            images=[self._refs.put(BackendId("i", src, thread)) for src in images if rules.image_object(src)],
         )
 
     def draft(
@@ -585,6 +587,27 @@ class TeamsService:
         finally:
             temp.unlink(missing_ok=True)
         return FileText(name=match["name"], text=text, truncated=cut)
+
+    def image(self, image_ref: str) -> TeamsImage:
+        """See `TeamsApi.image`. Full size first; the scaled view when that is missing or too large."""
+        found = rules.image_object(self._refs.get(image_ref, kinds="i").item_id)
+        if found is None:
+            raise InvalidInputError(f"{image_ref} is not an image stored in Teams.")
+        base, object_id = found
+        data = b""
+        for view in ("imgpsh_fullsize_anim", "imgo"):
+            try:
+                data = self._session.download(base, f"/v1/objects/{object_id}/views/{view}", auth=("ams",))
+            except NotFoundError:
+                continue
+            if len(data) <= _IMAGE_MAX:
+                break
+        mime = rules.image_type(data)
+        if mime is None or len(data) > _IMAGE_MAX:
+            raise InvalidInputError(
+                f"Teams gave no viewable image for {image_ref} (missing, too large or not an image)."
+            )
+        return TeamsImage(ref=image_ref, mime=mime, data=data)
 
     def _download_file(self, entry: dict[str, str]) -> bytes:
         """Download a shared file's bytes from SharePoint, using the file's own drive."""

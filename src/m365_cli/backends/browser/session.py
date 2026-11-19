@@ -20,7 +20,7 @@ SSO_STORE_URL = (
     "https://chromewebstore.google.com/detail/microsoft-single-sign-on/ppnbnpeolgkicgegkbkbjmhlideopiji"
 )
 LOGIN_HOSTS = ("login.microsoftonline.com", "login.microsoft.com", "login.live.com")
-HOOK_VERSION = 8
+HOOK_VERSION = 9
 _START_WAIT = 25
 _READY_WAIT = 60
 _LINUX_BROWSERS = (
