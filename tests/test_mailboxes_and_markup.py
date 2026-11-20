@@ -58,6 +58,13 @@ def test_draft_gets_signature_and_format(fake_ctx: AppContext) -> None:
     assert reply.signature.startswith("reply") and "added by Outlook" in reply.signature
 
 
+def test_read_shows_bcc_of_a_draft(fake_ctx: AppContext) -> None:
+    mail = mail_api(fake_ctx)
+    draft = mail.compose("new", to=["Jana"], bcc=["Petr"], subject="Plan", body="Go")
+    shown = render.message(mail.read(draft.ref))
+    assert "Bcc: " in shown and "Petr" in shown.split("Bcc: ", 1)[1].splitlines()[0]
+
+
 def test_shared_mailbox_find_and_reply_on_behalf(fake_ctx: AppContext) -> None:
     mail = mail_api(fake_ctx)
     assert (SHARED_MAILBOX, "shared") in mail.mailboxes()

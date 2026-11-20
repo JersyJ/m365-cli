@@ -73,6 +73,7 @@ class MailMessage(MailSummary):
     sender_email: str = ""
     to: str = ""
     cc: str = ""
+    bcc: str = ""
     categories: str = ""
     attachments: list[Attachment] = Field(default_factory=list)
     body: str = ""

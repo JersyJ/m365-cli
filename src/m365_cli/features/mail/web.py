@@ -318,6 +318,7 @@ class WebMailService:
             sender_email=_address(self._from(m, mailbox)),
             to="; ".join(_name(r) for r in m.get("ToRecipients") or []),
             cc="; ".join(_name(r) for r in m.get("CcRecipients") or []),
+            bcc="; ".join(_name(r) for r in m.get("BccRecipients") or []),
             categories=", ".join(m.get("Categories") or []),
             attachments=[
                 Attachment(
@@ -369,7 +370,7 @@ class WebMailService:
         )
 
     def thread(self, ref: str, *, full: bool = False) -> list[MailMessage]:
-        """The whole conversation of a mail across folders, oldest first."""
+        """The whole conversation of a mail across folders (drafts left out), oldest first."""
         item_id, mailbox = self._item(ref)
         conversation = (
             self._web.rest(f"/messages/{item_id}?$select=ConversationId", mailbox=mailbox) or {}
@@ -385,7 +386,11 @@ class WebMailService:
         members = self._web.rest_pages(
             f"/messages?{_params(params)}", max_items=200, mailbox=mailbox, text=True
         )
-        messages = [self._message(m, mailbox, full=full, limit=_THREAD_BODY_CHARS) for m in members]
+        messages = [
+            self._message(m, mailbox, full=full, limit=_THREAD_BODY_CHARS)
+            for m in members
+            if not m.get("IsDraft")
+        ]
         return sorted(messages, key=lambda m: m.received or datetime.min)
 
     def waiting(

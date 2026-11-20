@@ -143,6 +143,7 @@ class FakeMailService:
             sender_email=mail.sender_email,
             to="; ".join(mail.to),
             cc="; ".join(mail.cc),
+            bcc="; ".join(mail.bcc),
             categories=", ".join(mail.categories),
             attachments=[
                 Attachment(index=i, name=a.name, size=a.size, inline=a.inline)
