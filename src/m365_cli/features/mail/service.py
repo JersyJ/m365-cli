@@ -226,7 +226,7 @@ class MailService:
         return self._session.run(lambda ol: ol.mailboxes())
 
     def thread(self, ref: str, *, full: bool = False) -> list[MailMessage]:
-        """The whole conversation of a mail across folders, oldest first.
+        """The whole conversation of a mail across folders (drafts left out), oldest first.
 
         Uses Outlook's conversation view; each message has its quoted history removed unless `full`.
         """
@@ -244,7 +244,9 @@ class MailService:
                     ids.append(table.GetNextRow()("EntryID"))
                 members = [_item_or_none(ol, entry_id) for entry_id in ids] or [item]
             messages = [
-                self._message(ol, m, full=full, limit=_THREAD_BODY_CHARS) for m in members if m is not None
+                self._message(ol, m, full=full, limit=_THREAD_BODY_CHARS)
+                for m in members
+                if m is not None and get(m, "Sent", True)
             ]
             return sorted(messages, key=lambda m: m.received or datetime.min)
 
