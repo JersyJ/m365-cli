@@ -1,10 +1,15 @@
+import json
 from datetime import date, datetime
 
 import pytest
+from websockets.exceptions import ConnectionClosedError
 
+from m365_cli.backends.browser import cdp as cdp_module
+from m365_cli.backends.browser.cdp import ConnectionLostError
+from m365_cli.backends.browser.session import HOOK_VERSION, BrowserConfig, PageSession
 from m365_cli.backends.outlook_web.session import ews_id, from_utc, from_wall, quote, rest_id, to_utc, wall
 from m365_cli.core.context import AppContext
-from m365_cli.core.errors import InvalidInputError
+from m365_cli.core.errors import BackendUnavailableError, InvalidInputError
 from m365_cli.features.calendar.api import calendar_api
 from m365_cli.features.calendar.models import Repeat
 from m365_cli.features.calendar.web import _recurrence, _set_field
@@ -147,3 +152,68 @@ def test_scheduled_mark_only_for_waiting_drafts() -> None:
         ref="m:AAAAAAA", received=None, sender="me", subject="s", scheduled=datetime(2099, 1, 1, 9)
     )
     assert "[scheduled " in summary_line(summary)
+
+
+class _Ws:
+    """A fake DevTools websocket: answers every call, or fails as `fail` says."""
+
+    def __init__(self, fail: str = "") -> None:
+        self.fail = fail
+        self.sent: list[dict] = []
+
+    def send(self, text: str) -> None:
+        if self.fail == "closed":
+            raise ConnectionClosedError(None, None)
+        self.sent.append(json.loads(text))
+
+    def recv(self, timeout: float | None = None) -> str:
+        if self.fail == "timeout":
+            raise TimeoutError
+        message = self.sent[-1]
+        ready = "status()" in message["params"].get("expression", "")
+        value = {"version": HOOK_VERSION, "ok": True} if ready else {"status": 200}
+        return json.dumps({"id": message["id"], "result": {"result": {"value": value}}})
+
+    def close(self) -> None:
+        pass
+
+
+class _App(PageSession):
+    url = "https://app.example/"
+    hosts = ("app.example",)
+
+    def _is_ready(self, state: dict) -> bool:
+        return bool(state.get("ok"))
+
+
+def _app(monkeypatch: pytest.MonkeyPatch, tmp_path, sockets: list[_Ws]) -> tuple[_App, list[int]]:
+    """A session already connected to `sockets[0]`, with a fake browser that is not running."""
+    monkeypatch.setattr(cdp_module, "connect", lambda *a, **k: sockets.pop(0))
+    app = _App(BrowserConfig(port=1, profile_dir=tmp_path))
+    started: list[int] = []
+    tab = {"url": "https://app.example/", "webSocketDebuggerUrl": "ws://tab"}
+    monkeypatch.setattr(app, "_tabs", lambda: [tab] if started else None)
+    monkeypatch.setattr(app, "_start_browser", lambda: started.append(1))
+    monkeypatch.setattr(app, "_wait_for_tabs", lambda: [tab])
+    app._cdp = cdp_module.CdpConnection("ws://tab")
+    return app, started
+
+
+def test_lost_browser_connection_starts_the_browser_again(monkeypatch, tmp_path):
+    app, started = _app(monkeypatch, tmp_path, [_Ws("closed"), _Ws()])
+    dead = app._cdp
+    assert app._call({}) == {"status": 200}
+    assert started == [1]
+    assert app._cdp is not dead
+
+
+def test_slow_browser_call_is_not_retried(monkeypatch, tmp_path):
+    sockets = [_Ws("timeout"), _Ws()]
+    app, started = _app(monkeypatch, tmp_path, sockets)
+    slow = app._cdp
+    with pytest.raises(BackendUnavailableError) as raised:
+        app._call({})
+    assert not isinstance(raised.value, ConnectionLostError)
+    assert app._cdp is slow
+    assert started == []
+    assert len(sockets) == 1

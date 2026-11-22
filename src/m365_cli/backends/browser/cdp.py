@@ -17,6 +17,10 @@ class CdpError(BackendUnavailableError):
     """The browser returned an error for a DevTools call, or the page script threw."""
 
 
+class ConnectionLostError(BackendUnavailableError):
+    """The websocket to the tab is closed (the browser exited or the tab was closed)."""
+
+
 class CdpConnection:
     """One DevTools websocket to a browser tab; calls are serialized, events are ignored."""
 
@@ -42,7 +46,8 @@ class CdpConnection:
 
         Raises:
             CdpError: The browser reports an error.
-            BackendUnavailableError: The connection is lost or the call times out.
+            ConnectionLostError: The connection is lost.
+            BackendUnavailableError: The call times out.
         """
         with self._lock:
             self._next_id += 1
@@ -64,7 +69,7 @@ class CdpConnection:
                     f"The browser tab did not answer {method} in {timeout:g} s."
                 ) from exc
             except (OSError, WebSocketException) as exc:
-                raise BackendUnavailableError(f"Lost the connection to the browser tab: {exc}") from exc
+                raise ConnectionLostError(f"Lost the connection to the browser tab: {exc}") from exc
         if "error" in message:
             raise CdpError(f"{method}: {message['error'].get('message', message['error'])}")
         return message.get("result", {})
