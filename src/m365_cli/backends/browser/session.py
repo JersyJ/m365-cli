@@ -13,7 +13,7 @@ from importlib import resources
 from pathlib import Path
 from typing import Any, ClassVar
 
-from m365_cli.backends.browser.cdp import CdpConnection
+from m365_cli.backends.browser.cdp import CdpConnection, ConnectionLostError
 from m365_cli.core.errors import BackendUnavailableError, M365Error
 
 SSO_STORE_URL = (
@@ -132,9 +132,17 @@ class PageSession:
         return reply if isinstance(reply, dict) else {"status": 0, "error": "no answer"}
 
     def _ready_cdp(self) -> CdpConnection:
+        """The tab's connection with the page script ready; a lost connection is replaced once."""
+        ready = False
+        if self._cdp is not None:
+            try:
+                ready = self._hook_ready(self._cdp)
+            except ConnectionLostError:
+                self._cdp = None
         if self._cdp is None:
             self._cdp = self._connect()
-        if not self._hook_ready(self._cdp):
+            ready = self._hook_ready(self._cdp)
+        if not ready:
             self._install_hook(self._cdp)
         return self._cdp
 
