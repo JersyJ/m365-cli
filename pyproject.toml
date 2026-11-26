@@ -1,6 +1,6 @@
 [project]
 name = "m365-cli"
-version = "0.3.4"
+version = "0.3.5"
 description = "Token-efficient Outlook mail, calendar and Teams for AI agents: modular CLI + MCP server, no Graph app registration."
 readme = "README.md"
 license = "MIT"

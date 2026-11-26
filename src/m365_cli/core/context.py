@@ -69,6 +69,7 @@ class AppContext:
             port=s.teams_port,
             profile_dir=s.teams_profile_dir or s.data_dir / "chrome-teams",
             executable=s.teams_browser,
+            window=s.teams_window,
         )
 
     @cached_property

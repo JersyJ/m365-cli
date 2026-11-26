@@ -170,6 +170,8 @@ class _Ws:
         if self.fail == "timeout":
             raise TimeoutError
         message = self.sent[-1]
+        if message["method"] == "Browser.getWindowForTarget":
+            return json.dumps({"id": message["id"], "result": {"windowId": 1}})
         ready = "status()" in message["params"].get("expression", "")
         value = {"version": HOOK_VERSION, "ok": True} if ready else {"status": 200}
         return json.dumps({"id": message["id"], "result": {"result": {"value": value}}})
@@ -189,7 +191,7 @@ class _App(PageSession):
 def _app(monkeypatch: pytest.MonkeyPatch, tmp_path, sockets: list[_Ws]) -> tuple[_App, list[int]]:
     """A session already connected to `sockets[0]`, with a fake browser that is not running."""
     monkeypatch.setattr(cdp_module, "connect", lambda *a, **k: sockets.pop(0))
-    app = _App(BrowserConfig(port=1, profile_dir=tmp_path))
+    app = _App(BrowserConfig(port=1, profile_dir=tmp_path, window="minimized"))
     started: list[int] = []
     tab = {"url": "https://app.example/", "webSocketDebuggerUrl": "ws://tab"}
     monkeypatch.setattr(app, "_tabs", lambda: [tab] if started else None)
@@ -200,11 +202,14 @@ def _app(monkeypatch: pytest.MonkeyPatch, tmp_path, sockets: list[_Ws]) -> tuple
 
 
 def test_lost_browser_connection_starts_the_browser_again(monkeypatch, tmp_path):
-    app, started = _app(monkeypatch, tmp_path, [_Ws("closed"), _Ws()])
+    fresh = _Ws()
+    app, started = _app(monkeypatch, tmp_path, [_Ws("closed"), fresh])
     dead = app._cdp
     assert app._call({}) == {"status": 200}
     assert started == [1]
     assert app._cdp is not dead
+    minimized = {"windowId": 1, "bounds": {"windowState": "minimized"}}
+    assert any(m["method"] == "Browser.setWindowBounds" and m["params"] == minimized for m in fresh.sent)
 
 
 def test_slow_browser_call_is_not_retried(monkeypatch, tmp_path):
