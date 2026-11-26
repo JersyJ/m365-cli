@@ -74,7 +74,7 @@ class PageSession:
 
     The tokens never leave the browser: a page script (hook.js) keeps the tokens that the web app
     itself obtains and runs our `fetch()` calls with them. The browser is a dedicated profile with a
-    DevTools port on 127.0.0.1; it is started off-screen when needed and shown only for a sign-in.
+    DevTools port on 127.0.0.1; it is started minimized when needed and shown only for a sign-in.
     Subclasses name the app, its address and hosts, and when the page is ready.
     """
 
@@ -190,6 +190,7 @@ class PageSession:
 
     def _connect(self) -> CdpConnection:
         tabs = self._tabs()
+        started = tabs is None
         if tabs is None:
             self._start_browser()
             tabs = self._wait_for_tabs()
@@ -197,7 +198,10 @@ class PageSession:
         tab = tab or next((t for t in tabs if host_of(t.get("url", "")) in LOGIN_HOSTS), None)
         if tab is None:
             tab = self._open_tab()
-        return CdpConnection(str(tab["webSocketDebuggerUrl"]))
+        cdp = CdpConnection(str(tab["webSocketDebuggerUrl"]))
+        if started:
+            self._minimize_window(cdp)
+        return cdp
 
     def _endpoint(self, path: str) -> str:
         return f"http://127.0.0.1:{self._config.port}{path}"
@@ -243,7 +247,8 @@ class PageSession:
             f"--user-data-dir={self._config.profile_dir}",
             "--no-first-run",
             "--no-default-browser-check",
-            "--window-position=-32000,-32000",
+            "--window-position=80,60",
+            "--window-size=1280,860",
             self.url,
         ]
         flags = getattr(subprocess, "DETACHED_PROCESS", 0) | getattr(
@@ -259,10 +264,24 @@ class PageSession:
             close_fds=True,
         )
 
-    def _show_window(self, cdp: CdpConnection) -> None:
+    def _minimize_window(self, cdp: CdpConnection) -> None:
+        """Minimize the browser window; Chrome on Windows ignores --start-minimized."""
         try:
             window = cdp.call("Browser.getWindowForTarget")
-            bounds = {"left": 80, "top": 60, "width": 1280, "height": 860, "windowState": "normal"}
+            cdp.call(
+                "Browser.setWindowBounds",
+                {"windowId": window["windowId"], "bounds": {"windowState": "minimized"}},
+            )
+        except M365Error:
+            return
+
+    def _show_window(self, cdp: CdpConnection) -> None:
+        """Restore the window, then size it; from minimized, Chrome ignores bounds sent with the state."""
+        try:
+            window = cdp.call("Browser.getWindowForTarget")
+            normal = {"windowId": window["windowId"], "bounds": {"windowState": "normal"}}
+            cdp.call("Browser.setWindowBounds", normal)
+            bounds = {"left": 80, "top": 60, "width": 1280, "height": 860}
             cdp.call("Browser.setWindowBounds", {"windowId": window["windowId"], "bounds": bounds})
             cdp.call("Page.bringToFront")
         except M365Error:
