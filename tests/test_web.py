@@ -191,7 +191,7 @@ class _App(PageSession):
 def _app(monkeypatch: pytest.MonkeyPatch, tmp_path, sockets: list[_Ws]) -> tuple[_App, list[int]]:
     """A session already connected to `sockets[0]`, with a fake browser that is not running."""
     monkeypatch.setattr(cdp_module, "connect", lambda *a, **k: sockets.pop(0))
-    app = _App(BrowserConfig(port=1, profile_dir=tmp_path))
+    app = _App(BrowserConfig(port=1, profile_dir=tmp_path, window="minimized"))
     started: list[int] = []
     tab = {"url": "https://app.example/", "webSocketDebuggerUrl": "ws://tab"}
     monkeypatch.setattr(app, "_tabs", lambda: [tab] if started else None)

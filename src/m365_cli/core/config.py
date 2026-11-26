@@ -12,6 +12,7 @@ from m365_cli.core.errors import InvalidInputError
 APP_NAME = "m365-cli"
 
 Backend = Literal["outlook", "web", "fake"]
+Window = Literal["offscreen", "minimized", "normal"]
 
 
 def _app_dir(env_var: str, fallback: str) -> Path:
@@ -69,8 +70,9 @@ class Settings(BaseModel):
 
     Browser (Teams and the web backend): `teams_port` is the DevTools port of the dedicated browser,
     `teams_browser` its executable (default: Chrome, then Edge), `teams_profile_dir` its profile
-    (default: data_dir / chrome-teams), and `teams_protected` lists chat titles ('*' wildcards) the
-    tool never sends to.
+    (default: data_dir / chrome-teams), `teams_window` where its window starts ("offscreen",
+    "minimized" or "normal"), and `teams_protected` lists chat titles ('*' wildcards) the tool never
+    sends to.
     """
 
     model_config = ConfigDict(extra="forbid", frozen=True)
@@ -91,6 +93,7 @@ class Settings(BaseModel):
     teams_port: int = Field(default=9222, ge=1024, le=65535)
     teams_browser: Path | None = None
     teams_profile_dir: Path | None = None
+    teams_window: Window = "offscreen"
     teams_protected: list[str] = Field(default_factory=list)
 
     @classmethod

@@ -41,11 +41,13 @@ class BrowserConfig:
         port: DevTools port on 127.0.0.1.
         profile_dir: Browser profile used only by this tool.
         executable: Chrome or Edge executable; None = find Chrome, then Edge.
+        window: Where the window starts: "offscreen", "minimized" or "normal".
     """
 
     port: int
     profile_dir: Path
     executable: Path | None = None
+    window: str = "offscreen"
 
 
 def browser_candidates() -> list[Path]:
@@ -74,7 +76,7 @@ class PageSession:
 
     The tokens never leave the browser: a page script (hook.js) keeps the tokens that the web app
     itself obtains and runs our `fetch()` calls with them. The browser is a dedicated profile with a
-    DevTools port on 127.0.0.1; it is started minimized when needed and shown only for a sign-in.
+    DevTools port on 127.0.0.1; it is started when needed (off-screen by default) and shown for a sign-in.
     Subclasses name the app, its address and hosts, and when the page is ready.
     """
 
@@ -199,7 +201,7 @@ class PageSession:
         if tab is None:
             tab = self._open_tab()
         cdp = CdpConnection(str(tab["webSocketDebuggerUrl"]))
-        if started:
+        if started and self._config.window == "minimized":
             self._minimize_window(cdp)
         return cdp
 
@@ -247,7 +249,7 @@ class PageSession:
             f"--user-data-dir={self._config.profile_dir}",
             "--no-first-run",
             "--no-default-browser-check",
-            "--window-position=80,60",
+            "--window-position=" + ("-32000,-32000" if self._config.window == "offscreen" else "80,60"),
             "--window-size=1280,860",
             self.url,
         ]
